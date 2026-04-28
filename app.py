@@ -60,9 +60,7 @@ def load_data(subject):
     except:
         return pd.DataFrame()
 
-# ==========================================
-# 3. メイン画面表示
-# ==========================================
+# ヘッダー表示
 st.markdown("""
 <div class="header-container">
     <div class="science-icon">🧬🧪⚛️</div>
@@ -77,15 +75,14 @@ if sub == "選択してください":
     st.markdown(f"""
     <div class="concept-section">
         <strong>■ コンセプト</strong><br>
-        ・<b>英単語</b>：リーディングで「見て意味がわかる」単語を増やす。基本はシス単を使って勉強すること。これは手元に単語帳がないときのもの。<br>
-        ・<b>数学</b>：入試数学の定石（頻出パターン）を定着させ、応用問題に立ち向かう基礎力をつける。<br><br>
+        ・<b>英単語</b>：リーディングで「見て意味がわかる」単語を増やす。基本はシス単。手元に単語帳がないとき用。<br>
+        ・<b>数学</b>：入試数学の定石を定着させ、応用問題に立ち向かう基礎力をつける。<br><br>
         <strong>■ 学習の手順</strong><br>
-        ① 問題に対して、使うべき定石（公式・置換・変形）をすぐに思い浮かぶレベルにする。<br>
+        ① 使うべき定石をすぐに思い浮かぶレベルにする。<br>
         ② 手を動かして計算し、計算力をつける。<br>
-        ③ 即答できるレベルまで解法を定着させる。
+        ③ 即答できるレベルまで定着させる。
     </div>
     """, unsafe_allow_html=True)
-    st.info("← 左のサイドバーから科目を選択してください。")
     st.stop()
 
 df_raw = load_data(sub)
@@ -93,7 +90,7 @@ if df_raw.empty:
     st.warning("CSVファイルが見つかりません。")
     st.stop()
 
-# --- フィルター設定 ---
+# フィルタリング
 if sub == "システム英単語":
     lv_map = {"すべて":"All", "Fundamental (1-600)":"Fundamental", "Essential (601-1200)":"Essential", "Advanced (1201-1700)":"Advanced", "Final (1701-2027)":"Final"}
     selected_filter = st.sidebar.radio("レベル", list(lv_map.keys()))
@@ -103,7 +100,6 @@ else:
     selected_filter = st.sidebar.radio("分野", cats)
     filter_keyword, filter_col = selected_filter, "category"
 
-# --- セッション管理 ---
 if "current_sub" not in st.session_state or st.session_state.current_sub != sub or st.session_state.get("last_filter") != selected_filter:
     st.session_state.current_sub, st.session_state.last_filter = sub, selected_filter
     df_f = df_raw.copy()
@@ -118,9 +114,7 @@ if st.session_state.df.empty:
 
 row = st.session_state.df.iloc[st.session_state.idx % len(st.session_state.df)]
 
-# ==========================================
-# 4. コンテンツ表示
-# ==========================================
+# 表示ロジック
 if sub == "システム英単語":
     word = str(row["question"])
     sentence = re.sub(re.escape(word), f"<span class='highlight'>{word}</span>", str(row["sentence"]), flags=re.IGNORECASE)
@@ -165,10 +159,10 @@ elif sub == "入試数学の定石（数Ⅲ）":
     else:
         st.markdown("---")
         
-        # 定石セクション（raw stringとして渡すことでバックスラッシュを保護）
+        # 定石・方針の表示（数式を確実にレンダリングさせる処理）
         st.write("**💡 定石・方針**")
-        with st.container(border=True):
-            st.write(f"{row['strategy']}")
+        strategy_text = str(row['strategy']).replace('$', '')
+        st.markdown(f"$\text{{{strategy_text}}}$") # 文全体を強制的に数式モードにする
         
         st.write("**【解答】**")
         ans_raw = str(row["answer"])
@@ -176,13 +170,13 @@ elif sub == "入試数学の定石（数Ⅲ）":
             prefix = "y' = " if is_diff else ""
             st.latex(prefix + ans_raw.replace("$", "").strip())
         else:
-            st.write(f"{ans_raw}")
+            st.write(ans_raw)
         
-        # ポイント解説
         if "explanation" in row and pd.notna(row["explanation"]):
             st.write("**📝 ポイント解説**")
             with st.container(border=True):
-                st.write(f"{row['explanation']}")
+                # 解説も同様にMarkdownでレンダリング
+                st.write(row["explanation"])
         
         if st.button("次の問題へ"):
             st.session_state.idx += 1
