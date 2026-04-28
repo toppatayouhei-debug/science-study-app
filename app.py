@@ -4,7 +4,7 @@ import random
 import re
 
 # ==========================================
-# 1. デザイン設定 (CSS)
+# 1. デザイン設定
 # ==========================================
 st.set_page_config(page_title="理系学習アプリ", page_icon="🧬")
 
@@ -49,6 +49,15 @@ def load_data(subject):
     except:
         return pd.DataFrame()
 
+# 数式表記を整える補助関数
+def format_math_text(text):
+    if pd.isna(text): return ""
+    text = str(text)
+    # バックスラッシュ等があるのに $ で囲まれていない場合、全体を囲む（簡易対応）
+    if ("\\" in text or "^" in text or "_" in text) and "$" not in text:
+        return f"${text}$"
+    return text
+
 # ==========================================
 # 3. メイン処理
 # ==========================================
@@ -64,7 +73,7 @@ if df_raw.empty:
     st.warning(f"{sub} のCSVファイルが見つかりません。")
     st.stop()
 
-# --- 動的フィルター ---
+# --- フィルター ---
 selected_filter = "すべて"
 if sub == "システム英単語":
     lv_map = {"すべて":"All", "Fundamental (1-600)":"Fundamental", "Essential (601-1200)":"Essential", "Advanced (1201-1700)":"Advanced", "Final (1701-2027)":"Final"}
@@ -126,8 +135,7 @@ if sub == "システム英単語":
         else: st.error(f"正解：{st.session_state.correct}")
         st.write(f"意味：{row['all_answers']}")
         if "explanation" in row and pd.notna(row["explanation"]):
-            # 英単語の解説内にもし $数式$ があれば自動レンダリング
-            st.markdown(f'<div class="explanation-box"><b>解説:</b><br>{row["explanation"]}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="explanation-box"><b>解説:</b><br>{format_math_text(row["explanation"])}</div>', unsafe_allow_html=True)
         if st.button("次の問題へ"):
             del st.session_state.choices
             st.session_state.idx += 1
@@ -146,19 +154,18 @@ elif sub == "数Ⅲ積分 定石":
         st.info(f"💡 定石：{row['strategy']}")
         st.write("**【解答】**")
         
-        # 解答が数式のみならlatex、日本語が混じっているなら markdown (これで $数式$ が変換される)
         ans_text = str(row["answer"])
+        # 日本語混じりの場合
         if re.search(r'[ぁ-んァ-ヶ亜-熙]', ans_text):
-            # 日本語と数式が混在していても、 $...$ で囲まれていれば綺麗に表示される
-            st.markdown(ans_text)
+            st.markdown(format_math_text(ans_text))
         else:
+            # 純粋な数式のみなら大きく表示
             st.latex(ans_text)
         
         if "explanation" in row and pd.notna(row["explanation"]):
-            # 解説ボックス内も markdown でレンダリング。数式は $...$ で囲んで書くこと。
             st.write("---")
             st.markdown(f"**📝 詳しい解説:**")
-            st.markdown(row["explanation"])
+            st.markdown(format_math_text(row["explanation"]))
         
         if st.button("次の問題へ"):
             st.session_state.idx += 1
