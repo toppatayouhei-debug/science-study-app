@@ -4,10 +4,10 @@ import random
 import re
 
 # ==================================================
-# 1. Page Config & CSS
+# 1. 基本設定（ページ名と見た目）
 # ==================================================
 st.set_page_config(
-    page_title="Science Study App",
+    page_title="理系特化型・定石マスター",
     page_icon="🧬",
     layout="centered"
 )
@@ -45,7 +45,7 @@ def reset_engine():
             del st.session_state[k]
 
 # ==================================================
-# 2. Data Loading
+# 2. データ読み込み
 # ==================================================
 @st.cache_data
 def load_csv(name):
@@ -60,26 +60,26 @@ def load_csv(name):
         return pd.DataFrame()
 
 # ==================================================
-# 3. Sidebar & Logic
+# 3. サイドバーとロジック
 # ==================================================
-st.sidebar.title("🧬 Science Menu")
-subject = st.sidebar.selectbox("Subject", ["Select", "システム英単語", "数Ⅲ積分 定石"])
+st.sidebar.title("🧬 理系学習メニュー")
+subject = st.sidebar.selectbox("科目を選択", ["選択してください", "システム英単語", "数Ⅲ積分 定石"])
 
-if subject == "Select":
-    st.info("← Please select a subject from sidebar.")
+if subject == "選択してください":
+    st.info("← サイドバーから科目を選択して開始してください。")
     st.stop()
 
 raw_df = load_csv(subject)
 if raw_df.empty:
-    st.warning(f"File for {subject} not found. Please check CSV.")
+    st.warning(f"{subject} のCSVファイルが見つかりません。")
     st.stop()
 
 df = raw_df
 sel_level = "All"
 if subject == "システム英単語":
-    levels = {"All":"All", "1-600":"Fundamental", "601-1200":"Essential", "1201-1700":"Advanced", "1701-2027":"Final"}
-    sel_level = st.sidebar.radio("Level", list(levels.keys()))
-    if sel_level != "All":
+    levels = {"すべて":"All", "1-600":"Fundamental", "601-1200":"Essential", "1201-1700":"Advanced", "1701-2027":"Final"}
+    sel_level = st.sidebar.radio("レベル選択", list(levels.keys()))
+    if sel_level != "すべて":
         df = raw_df[raw_df["level"].astype(str).str.contains(levels[sel_level], case=False, na=False)]
 
 if st.session_state.get("current_subject") != subject or st.session_state.get("current_filter") != str(sel_level):
@@ -94,8 +94,8 @@ idx = st.session_state.get("idx", 0)
 
 if idx >= len(active_df):
     st.balloons()
-    st.success("🎉 Completed!")
-    if st.button("Restart"):
+    st.success("🎉 お疲れ様でした！全問終了です！")
+    if st.button("最初からやり直す"):
         reset_engine()
         st.rerun()
     st.stop()
@@ -104,7 +104,7 @@ row = active_df.iloc[idx]
 st.progress((idx + 1) / len(active_df))
 
 # ==================================================
-# 4. Main UI
+# 4. メインUI
 # ==================================================
 if subject == "システム英単語":
     word = str(row["question"])
@@ -128,10 +128,10 @@ if subject == "システム英単語":
                 st.rerun()
     
     if st.session_state.get("answered"):
-        if st.session_state.selected == st.session_state.correct: st.success("✨ Correct!")
-        else: st.error(f"❌ Incorrect... Correct: {st.session_state.correct}")
-        st.info(f"Meaning: {row['all_answers']}\nTranslation: {row['translation']}")
-        if st.button("Next"):
+        if st.session_state.selected == st.session_state.correct: st.success("✨ 正解！")
+        else: st.error(f"❌ 不正解... 正解は：{st.session_state.correct}")
+        st.info(f"意味：{row['all_answers']}\n文意：{row['translation']}")
+        if st.button("次の問題へ"):
             del st.session_state.choices
             st.session_state.idx += 1
             st.session_state.answered = False
@@ -144,13 +144,13 @@ elif subject == "数Ⅲ積分 定石":
     st.markdown('</div>', unsafe_allow_html=True)
     
     if not st.session_state.get("answered", False):
-        if st.button("Check Answer"):
+        if st.button("解答を確認する"):
             st.session_state.answered = True
             st.rerun()
     else:
-        st.info(f"💡 Strategy: {row['strategy']}")
+        st.info(f"💡 定石：{row['strategy']}")
         st.latex(row["answer"])
-        if st.button("Next"):
+        if st.button("次の問題へ"):
             st.session_state.idx += 1
             st.session_state.answered = False
             st.rerun()
