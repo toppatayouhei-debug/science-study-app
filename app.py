@@ -6,7 +6,7 @@ import re
 # ==========================================
 # 1. デザイン設定
 # ==========================================
-st.set_page_config(page_title="理系には、勝ち方がある", page_icon="🧬")
+st.set_page_config(page_title="理系には、勝ち方がある", page_icon="🧬", layout="centered")
 
 st.markdown("""
 <style>
@@ -39,7 +39,7 @@ st.markdown("""
     padding: 15px 20px !important; 
     border-radius: 12px !important; 
     box-shadow: 0 4px 10px rgba(0,0,0,0.08) !important; 
-    margin-bottom: 10px !important;
+    margin-bottom: 15px !important;
 }
 .highlight { color: #ff9800 !important; font-weight: bold !important; }
 .orange-card { border-left: 8px solid #ff9800 !important; }
@@ -49,6 +49,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+@st.cache_data
 def load_data(subject):
     file_map = {
         "システム英単語": "final_tango_list.csv",
@@ -58,6 +59,8 @@ def load_data(subject):
     try:
         df = pd.read_csv(file_map[subject], encoding="utf-8-sig").dropna(how='all')
         df.columns = df.columns.str.strip()
+        # 全データに対してトリミング
+        df = df.apply(lambda x: x.str.strip() if x.dtype == "object" else x)
         return df
     except:
         return pd.DataFrame()
@@ -74,7 +77,7 @@ st.sidebar.title("🧬 学習メニュー")
 sub = st.sidebar.selectbox("科目を選択", ["選択してください", "システム英単語", "入試数学の定石（数Ⅲ）", "入試数学の定石（ⅠAⅡB C）"])
 
 if sub == "選択してください":
-    st.markdown(f"""
+    st.markdown("""
     <div class="concept-section">
         <strong>■ Goal</strong><br>
         ・<b>英単語</b>：リーディングで「見て意味がわかる」単語を増やす。基本的にはシス単本体を使うこと。これはあくまでも補助です。<br>
@@ -99,21 +102,25 @@ if sub == "システム英単語":
     filter_keyword, filter_col = lv_map[selected_filter], "level"
 else:
     all_cats = df_raw["category"].unique().tolist()
-    priority_kw = "微分" if "数Ⅲ" in sub else "【"
-    priority_cats = [c for c in all_cats if priority_kw in str(c)]
-    other_cats = [c for c in all_cats if priority_kw not in str(c)]
+    # 優先順位付け（微分法、積分法を上に）
+    priority_kw = "積分" if "数Ⅲ" in sub else "【"
+    priority_cats = [c for c in all_cats if any(kw in str(c) for kw in ["微分", "積分", "極限"])]
+    other_cats = [c for c in all_cats if c not in priority_cats]
     cats = ["すべて"] + sorted(priority_cats) + sorted(other_cats)
     selected_filter = st.sidebar.radio("分野", cats)
     filter_keyword, filter_col = selected_filter, "category"
 
 # セッション管理
 if "current_sub" not in st.session_state or st.session_state.current_sub != sub or st.session_state.get("last_filter") != selected_filter:
-    st.session_state.current_sub, st.session_state.last_filter = sub, selected_filter
+    st.session_state.current_sub = sub
+    st.session_state.last_filter = selected_filter
     df_f = df_raw.copy()
     if selected_filter != "すべて":
         df_f = df_raw[df_raw[filter_col].astype(str).str.contains(filter_keyword, case=False, na=False)]
     st.session_state.df = df_f.sample(frac=1).reset_index(drop=True)
-    st.session_state.idx, st.session_state.answered = 0, False
+    st.session_state.idx = 0
+    st.session_state.answered = False
+    if "choices" in st.session_state: del st.session_state.choices
 
 if st.session_state.df.empty:
     st.warning("該当する問題がありません。")
@@ -156,10 +163,7 @@ else:
     
     # 問題文（例題）の表示
     q_text = str(row["question"])
-    if "$" in q_text:
-        st.markdown(q_text)
-    else:
-        st.write(q_text)
+    st.markdown(q_text)
     
     if not st.session_state.answered:
         if st.button("定石と解答を確認する"):
@@ -174,10 +178,11 @@ else:
         # 【解答】
         st.write("**【解答・略解】**")
         ans_raw = str(row["answer"])
-        if not re.search(r'[ぁ-んァ-ヶ亜-熙]', ans_raw):
-            st.latex(ans_raw.replace("$", "").strip())
-        else:
+        # 日本語が含まれているか、または $ が含まれている場合は markdown で表示
+        if re.search(r'[ぁ-んァ-ヶ亜-熙]', ans_raw) or "$" in ans_raw:
             st.markdown(ans_raw)
+        else:
+            st.latex(ans_raw.replace("$", "").strip())
         
         # 📝 ポイント解説
         if "explanation" in row and pd.notna(row["explanation"]):
