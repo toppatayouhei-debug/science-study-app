@@ -12,10 +12,7 @@ st.markdown("""
 <style>
 st.markdown("""
 <style>
-/* 背景全体の設定 */
 .stApp { background:#f8fafc; }
-
-/* Card Settings */
 .card { 
     background-color: white !important; 
     padding: 22px; 
@@ -23,26 +20,17 @@ st.markdown("""
     box-shadow: 0 4px 15px rgba(0,0,0,0.05); 
     margin-bottom: 1rem; 
 }
-
-/* Latex Settings for Dark Mode */
 .stLatex, .stLatex p, .stLatex span, .stLatex svg {
     color: #000000 !important;
     fill: #000000 !important;
 }
-
-/* Text Colors */
 .card div, .card p, .card span, .card h1, .card h2, .card h3 {
     color: #111111 !important;
 }
-
 .orange-card { border-left: 8px solid #ff9800; }
 .blue-card   { border-left: 8px solid #2196f3; }
 .stButton button { width: 100%; border-radius: 12px; font-weight: 800; min-height: 50px; }
 .tango-btn button { background-color: #fff4e6 !important; color: #ff9800 !important; border: 2px solid #ff9800 !important; }
-</style>
-""", unsafe_allow_html=True)
-</style>
-""", unsafe_allow_html=True)
 </style>
 """, unsafe_allow_html=True)
 
