@@ -60,10 +60,11 @@ def load_data(subject):
         "入試数学の定石（ⅠAⅡB C）": "math_std.csv"
     }
     try:
+        # csv読み込み時にバックスラッシュをそのまま保持
         df = pd.read_csv(file_map[subject], encoding="utf-8-sig").dropna(how='all')
         df.columns = df.columns.str.strip()
         
-        # 数学の場合、バックスラッシュがプログラムに誤認されないよう保護
+        # 数学の場合、念のためバックスラッシュをエスケープ保護
         if "数学" in subject:
             df = df.replace(r'\\', r'\\\\', regex=True)
         return df
@@ -98,7 +99,7 @@ if sub == "選択してください":
 
 df_raw = load_data(sub)
 if df_raw.empty:
-    st.warning(f"「{sub}」用のデータが見つかりません。CSVファイルを確認してください。")
+    st.warning(f"「{sub}」用のデータが見つかりません。")
     st.stop()
 
 # ==========================================
@@ -127,7 +128,7 @@ if "current_sub" not in st.session_state or st.session_state.current_sub != sub 
     st.session_state.answered = False
 
 if st.session_state.df.empty:
-    st.warning("該当する問題がありません。設定を変えてみてください。")
+    st.warning("該当する問題がありません。")
     st.stop()
 
 row = st.session_state.df.iloc[st.session_state.idx % len(st.session_state.df)]
@@ -136,7 +137,7 @@ row = st.session_state.df.iloc[st.session_state.idx % len(st.session_state.df)]
 # 4. 表示ロジック
 # ==========================================
 
-# --- 【A】システム英単語の表示 ---
+# --- 【A】システム英単語 ---
 if sub == "システム英単語":
     word = str(row["question"])
     sentence = re.sub(re.escape(word), f"<span class='highlight'>{word}</span>", str(row["sentence"]), flags=re.IGNORECASE)
@@ -156,22 +157,22 @@ if sub == "システム英単語":
                 st.rerun()
     
     if st.session_state.answered:
-        if st.session_state.selected == st.session_state.correct: st.success("正解！")
+        if st.session_state.selected == st.session_state.correct: st.success("正解")
         else: st.error(f"正解：{st.session_state.correct}")
         st.write(f"意味：{row['all_answers']}")
-        if st.button("次の単語へ"):
+        if st.button("次の問題へ"):
             if "choices" in st.session_state: del st.session_state.choices
             st.session_state.idx += 1
             st.session_state.answered = False
             st.rerun()
 
-# --- 【B】数学の表示 ---
+# --- 【B】数学 ---
 else:
     st.markdown(f'<div class="card blue-card">【{row["category"]}】例題</div>', unsafe_allow_html=True)
     
-    # 問題文の lim や分数も綺麗にする設定
-    q_text = str(row["question"]).replace('$', '$\\displaystyle ')
-    st.markdown(q_text)
+    # 1. 問題文の表示（数式を綺麗に）
+    q_text = str(row["question"]).replace('$', '').replace('\\\\', '\\')
+    st.latex(rf"\displaystyle {q_text}")
     
     if not st.session_state.answered:
         if st.button("定石と解答を確認する"):
@@ -183,22 +184,26 @@ else:
         st.info(str(row['strategy']))
         
         st.write("**【解答・略解】**")
-        ans_raw = str(row["answer"]).replace('$', '') # 既存の $ を削除
+        # $を削除し、保護されたエスケープを戻す
+        ans_raw = str(row["answer"]).replace('$', '').replace('\\\\', '\\')
         
-        # 数式が含まれる場合は「教科書スタイル」で表示
+        # 2. 解答の表示（数式判定）
         if any(c in ans_raw for c in ['\\', '^', '_', '{', '}', 'int', 'lim', 'frac']):
-            # \displaystyle で lim の下を揃え、$$ で分数を大きく表示
-            st.markdown(f"$$\n\\displaystyle {ans_raw}\n$$")
+            # raw f-stringでバックスラッシュを保護しつつ st.latex で描画
+            st.latex(rf"\displaystyle {ans_raw}")
         else:
             st.write(ans_raw)
         
         if "explanation" in row and pd.notna(row["explanation"]):
             st.write("**📝 ポイント解説**")
-            # 解説文も数式対応
-            exp_text = str(row["explanation"]).replace('$', '$\\displaystyle ')
-            st.info(exp_text)
+            # 解説文も数式があれば対応
+            exp_text = str(row["explanation"]).replace('$', '').replace('\\\\', '\\')
+            if '\\' in exp_text:
+                st.latex(rf"\displaystyle {exp_text}")
+            else:
+                st.info(exp_text)
         
-        if st.button("次の定石へ"):
+        if st.button("次の問題へ"):
             st.session_state.idx += 1
             st.session_state.answered = False
             st.rerun()
