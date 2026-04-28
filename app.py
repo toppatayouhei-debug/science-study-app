@@ -116,18 +116,6 @@ if sub == "システム英単語":
 # 5. 表示：数学モード
 # ==========================================
 elif sub == "数Ⅲ積分 定石":
-    st.markdown('<div class="card blue-card">', unsafe_allow_html=True)
-    st.latex(r"\int " + str(row["question"]) + r" \, dx")
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    if not st.session_state.answered:
-        if st.button("解答を確認する"):
-            st.session_state.answered = True
-            st.rerun()
-    else:
-        st.info(f"💡 定石：{row['strategy']}")
-        st.latex(str(row["answer"]))
-        if st.button("次の問題へ"):
-            st.session_state.idx += 1
-            st.session_state.answered = False
-            st.rerun()
+    st.write("テスト表示中")
+    # r をつけて、単純な数式だけを表示させてみる
+    st.latex(r"\int x^2 dx = \frac{1}{3}x^3 + C")
