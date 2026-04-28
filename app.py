@@ -4,7 +4,7 @@ import random
 import re
 
 # ==========================================
-# 1. デザイン設定 (CSS)
+# 1. デザイン設定
 # ==========================================
 st.set_page_config(page_title="理系学習アプリ", page_icon="🧬")
 
@@ -19,13 +19,18 @@ st.markdown("""
     margin-bottom: 10px !important;
     color: #111111 !important;
 }
-.highlight {
-    color: #ff9800 !important;
-    font-weight: bold !important;
-}
+.highlight { color: #ff9800 !important; font-weight: bold !important; }
 .orange-card { border-left: 8px solid #ff9800 !important; }
 .blue-card { border-left: 8px solid #2196f3 !important; }
 .stButton button { width: 100%; border-radius: 10px; font-weight: bold; min-height: 45px; }
+.explanation-box {
+    background-color: #fff9db !important;
+    padding: 15px !important;
+    border-radius: 10px !important;
+    border: 1px solid #fab005 !important;
+    margin-top: 10px !important;
+    color: #444 !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -33,18 +38,14 @@ st.markdown("""
 # 2. データの読み込み
 # ==========================================
 def load_data(subject):
-    if subject == "システム英単語":
-        try:
-            return pd.read_csv("final_tango_list.csv", encoding="utf-8-sig").dropna(how='all')
-        except:
-            return pd.DataFrame()
-    else:
-        try:
-            # ★ここで math3_integration.csv を読み込むように設定しました
-            return pd.read_csv("math3_integration.csv", encoding="utf-8-sig").dropna(how='all')
-        except:
-            st.warning("math3_integration.csv が見つかりません。アップロードを確認してください。")
-            return pd.DataFrame()
+    file_map = {
+        "システム英単語": "final_tango_list.csv",
+        "数Ⅲ積分 定石": "math3_integration.csv"
+    }
+    try:
+        return pd.read_csv(file_map[subject], encoding="utf-8-sig").dropna(how='all')
+    except:
+        return pd.DataFrame()
 
 # ==========================================
 # 3. メイン処理
@@ -56,45 +57,47 @@ if sub == "選択してください":
     st.info("← サイドバーから科目を選択してください。")
     st.stop()
 
-# --- レベル選択 (英単語のみ) ---
-selected_level = "すべて"
+# --- 動的サイドバー設定 ---
+df_raw = load_data(sub)
+if df_raw.empty:
+    st.warning(f"{sub} のCSVファイルが見つかりません。")
+    st.stop()
+
+selected_filter = "すべて"
 if sub == "システム英単語":
-    lv_map = {
-        "すべて": "All",
-        "Fundamental (1-600)": "Fundamental",
-        "Essential (601-1200)": "Essential",
-        "Advanced (1201-1700)": "Advanced",
-        "Final (1701-2027)": "Final"
-    }
-    selected_level = st.sidebar.radio("レベルを選択", list(lv_map.keys()))
+    lv_map = {"すべて":"All", "Fundamental (1-600)":"Fundamental", "Essential (601-1200)":"Essential", "Advanced (1201-1700)":"Advanced", "Final (1701-2027)":"Final"}
+    selected_filter = st.sidebar.radio("レベルを選択", list(lv_map.keys()))
+    filter_keyword = lv_map[selected_filter]
+    filter_col = "level"
+else:
+    # 数学の場合、CSVのcategory列から自動で選択肢を作る
+    categories = ["すべて"] + sorted(df_raw["category"].unique().tolist())
+    selected_filter = st.sidebar.radio("分野を選択", categories)
+    filter_keyword = selected_filter
+    filter_col = "category"
 
 # --- 初期化 ---
-if "current_sub" not in st.session_state or st.session_state.current_sub != sub or st.session_state.get("last_level") != selected_level:
-    for key in list(st.session_state.keys()):
-        if key not in ["current_sub", "last_level"]: del st.session_state[key]
+if ("current_sub" not in st.session_state or st.session_state.current_sub != sub or 
+    st.session_state.get("last_filter") != selected_filter):
     
     st.session_state.current_sub = sub
-    st.session_state.last_level = selected_level
+    st.session_state.last_filter = selected_filter
     
-    df_raw = load_data(sub)
-    if sub == "システム英単語" and not df_raw.empty and selected_level != "すべて":
-        keyword = lv_map[selected_level]
-        df_raw = df_raw[df_raw["level"].astype(str).str.contains(keyword, case=False, na=False)]
+    df_filtered = df_raw.copy()
+    if selected_filter != "すべて":
+        df_filtered = df_raw[df_raw[filter_col].astype(str).str.contains(filter_keyword, case=False, na=False)]
     
-    if not df_raw.empty:
-        st.session_state.df = df_raw.sample(frac=1).reset_index(drop=True)
-    else:
-        st.session_state.df = pd.DataFrame()
+    st.session_state.df = df_filtered.sample(frac=1).reset_index(drop=True)
     st.session_state.idx = 0
     st.session_state.answered = False
 
-df = st.session_state.get("df", pd.DataFrame())
-if df.empty:
+if st.session_state.df.empty:
+    st.warning("該当する問題がありません。")
     st.stop()
 
-row = df.iloc[st.session_state.idx % len(df)]
+row = st.session_state.df.iloc[st.session_state.idx % len(st.session_state.df)]
 
-# --- 英単語表示 ---
+# --- 表示処理 ---
 if sub == "システム英単語":
     word = str(row["question"])
     sentence = re.sub(re.escape(word), f"<span class='highlight'>{word}</span>", str(row["sentence"]), flags=re.IGNORECASE)
@@ -113,19 +116,22 @@ if sub == "システム英単語":
             if st.button(val, key=f"t_{st.session_state.idx}_{i}", disabled=st.session_state.answered):
                 st.session_state.selected, st.session_state.answered = val, True
                 st.rerun()
+    
     if st.session_state.answered:
         if st.session_state.selected == st.session_state.correct: st.success("正解！")
         else: st.error(f"正解：{st.session_state.correct}")
         st.write(f"意味：{row['all_answers']}")
+        # 解説列があれば表示
+        if "explanation" in row and pd.notna(row["explanation"]):
+            st.markdown(f'<div class="explanation-box"><b>解説:</b><br>{row["explanation"]}</div>', unsafe_allow_html=True)
         if st.button("次の問題へ"):
             del st.session_state.choices
             st.session_state.idx += 1
             st.session_state.answered = False
             st.rerun()
 
-# --- 数学表示 ---
 elif sub == "数Ⅲ積分 定石":
-    st.markdown('<div class="card blue-card">次の不定積分を求めよ：</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="card blue-card">【{row["category"]}】次の不定積分を求めよ：</div>', unsafe_allow_html=True)
     st.latex(r"\int " + str(row["question"]) + r" \, dx")
     
     if not st.session_state.answered:
@@ -136,6 +142,10 @@ elif sub == "数Ⅲ積分 定石":
         st.info(f"💡 定石：{row['strategy']}")
         st.write("**【解答】**")
         st.latex(str(row["answer"]))
+        # 解説を表示
+        if "explanation" in row and pd.notna(row["explanation"]):
+            st.markdown(f'<div class="explanation-box"><b>📝 詳しい解説:</b><br>{row["explanation"]}</div>', unsafe_allow_html=True)
+        
         if st.button("次の問題へ"):
             st.session_state.idx += 1
             st.session_state.answered = False
