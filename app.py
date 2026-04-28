@@ -164,8 +164,11 @@ elif sub == "入試数学の定石（数Ⅲ）":
             st.rerun()
     else:
         st.markdown("---")
+        
+        # 定石セクション（背景付きで強調、数式対応）
         st.write("**💡 定石・方針**")
-        st.info(row['strategy'])
+        with st.container(border=True):
+            st.write(row['strategy'])
         
         st.write("**【解答】**")
         ans_raw = str(row["answer"])
@@ -175,9 +178,9 @@ elif sub == "入試数学の定石（数Ⅲ）":
         else:
             st.write(ans_raw)
         
+        # ポイント解説（数式対応）
         if "explanation" in row and pd.notna(row["explanation"]):
             st.write("**📝 ポイント解説**")
-            # HTMLを使わず、Streamlitのコンテナで枠を作ることで数式表示を保護
             with st.container(border=True):
                 st.write(row["explanation"])
         
