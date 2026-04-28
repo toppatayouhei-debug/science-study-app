@@ -4,7 +4,7 @@ import random
 import re
 
 # ==========================================
-# 1. デザイン設定
+# 1. デザイン設定 (CSS)
 # ==========================================
 st.set_page_config(page_title="理系学習アプリ", page_icon="🧬")
 
@@ -43,7 +43,10 @@ def load_data(subject):
         "数Ⅲ積分 定石": "math3_integration.csv"
     }
     try:
-        return pd.read_csv(file_map[subject], encoding="utf-8-sig").dropna(how='all')
+        df = pd.read_csv(file_map[subject], encoding="utf-8-sig").dropna(how='all')
+        # 全角スペースなどを除去
+        df.columns = df.columns.str.strip()
+        return df
     except:
         return pd.DataFrame()
 
@@ -57,12 +60,12 @@ if sub == "選択してください":
     st.info("← サイドバーから科目を選択してください。")
     st.stop()
 
-# --- 動的サイドバー設定 ---
 df_raw = load_data(sub)
 if df_raw.empty:
-    st.warning(f"{sub} のCSVファイルが見つかりません。")
+    st.warning(f"{sub} のCSVファイルが見つかりません。GitHubへのアップロードを確認してください。")
     st.stop()
 
+# --- 動的フィルター (レベル分け or 分野分け) ---
 selected_filter = "すべて"
 if sub == "システム英単語":
     lv_map = {"すべて":"All", "Fundamental (1-600)":"Fundamental", "Essential (601-1200)":"Essential", "Advanced (1201-1700)":"Advanced", "Final (1701-2027)":"Final"}
@@ -70,9 +73,13 @@ if sub == "システム英単語":
     filter_keyword = lv_map[selected_filter]
     filter_col = "level"
 else:
-    # 数学の場合、CSVのcategory列から自動で選択肢を作る
-    categories = ["すべて"] + sorted(df_raw["category"].unique().tolist())
-    selected_filter = st.sidebar.radio("分野を選択", categories)
+    # 数学：category列から自動生成
+    if "category" in df_raw.columns:
+        cats = ["すべて"] + sorted(df_raw["category"].unique().tolist())
+    else:
+        df_raw["category"] = "未分類"
+        cats = ["すべて", "未分類"]
+    selected_filter = st.sidebar.radio("分野を選択", cats)
     filter_keyword = selected_filter
     filter_col = "category"
 
@@ -83,11 +90,11 @@ if ("current_sub" not in st.session_state or st.session_state.current_sub != sub
     st.session_state.current_sub = sub
     st.session_state.last_filter = selected_filter
     
-    df_filtered = df_raw.copy()
+    df_f = df_raw.copy()
     if selected_filter != "すべて":
-        df_filtered = df_raw[df_raw[filter_col].astype(str).str.contains(filter_keyword, case=False, na=False)]
+        df_f = df_raw[df_raw[filter_col].astype(str).str.contains(filter_keyword, case=False, na=False)]
     
-    st.session_state.df = df_filtered.sample(frac=1).reset_index(drop=True)
+    st.session_state.df = df_f.sample(frac=1).reset_index(drop=True)
     st.session_state.idx = 0
     st.session_state.answered = False
 
@@ -97,7 +104,7 @@ if st.session_state.df.empty:
 
 row = st.session_state.df.iloc[st.session_state.idx % len(st.session_state.df)]
 
-# --- 表示処理 ---
+# --- 表示 ---
 if sub == "システム英単語":
     word = str(row["question"])
     sentence = re.sub(re.escape(word), f"<span class='highlight'>{word}</span>", str(row["sentence"]), flags=re.IGNORECASE)
@@ -121,7 +128,6 @@ if sub == "システム英単語":
         if st.session_state.selected == st.session_state.correct: st.success("正解！")
         else: st.error(f"正解：{st.session_state.correct}")
         st.write(f"意味：{row['all_answers']}")
-        # 解説列があれば表示
         if "explanation" in row and pd.notna(row["explanation"]):
             st.markdown(f'<div class="explanation-box"><b>解説:</b><br>{row["explanation"]}</div>', unsafe_allow_html=True)
         if st.button("次の問題へ"):
@@ -141,10 +147,16 @@ elif sub == "数Ⅲ積分 定石":
     else:
         st.info(f"💡 定石：{row['strategy']}")
         st.write("**【解答】**")
-        st.latex(str(row["answer"]))
-        # 解説を表示
+        
+        # 答えに日本語が混じっている場合は st.write、数式だけなら st.latex
+        ans_text = str(row["answer"])
+        if re.search(r'[ぁ-んァ-ヶ亜-熙]', ans_text):
+            st.write(ans_text)
+        else:
+            st.latex(ans_text)
+        
         if "explanation" in row and pd.notna(row["explanation"]):
-            st.markdown(f'<div class="explanation-box"><b>📝 詳しい解説:</b><br>{row["explanation"]}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="explanation-box"><b>📝 解説:</b><br>{row["explanation"]}</div>', unsafe_allow_html=True)
         
         if st.button("次の問題へ"):
             st.session_state.idx += 1
