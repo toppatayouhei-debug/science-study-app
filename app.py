@@ -46,9 +46,9 @@ st.markdown("""
     padding: 15px; 
     border-radius: 8px; 
     border: 1px solid #e2e8f0; 
-    line-height: 1.7; 
+    line-height: 1.8; 
     color: #334155; 
-    font-size: 0.95rem;
+    font-size: 1rem;
     margin-bottom: 20px;
 }
 .highlight { color: #ff9800 !important; font-weight: bold !important; }
@@ -59,16 +59,15 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. 補助関数
+# 2. 補助関数 (数式レンダリング修正)
 # ==========================================
-def format_math_text(text):
+def format_display_text(text):
+    """解説文の中のLaTeX記法をMarkdown形式に整える"""
     if pd.isna(text): return ""
-    text = str(text).strip().replace("−", "-").replace("　", " ")
-    if text.startswith("$") and text.endswith("$"): return text
-    clean_text = text.replace("$", "").strip()
-    keywords = ["\\", "^", "_", "{", "}", "/", "sin", "cos", "tan", "log", "int", "theta", "pi", "exp", "sqrt"]
-    is_math = any(k in clean_text.lower() for k in keywords) or any(c in clean_text for c in ["+", "=", "(", ")"])
-    return f"${clean_text}$" if is_math else clean_text
+    text = str(text).strip()
+    # 既に $ で囲まれている場合はそのまま、囲まれていないバックスラッシュを含む単語を $ で囲む
+    # ただし、今回はシンプルに Markdown としてそのまま st.markdown に渡します
+    return text
 
 def load_data(subject):
     file_map = {
@@ -112,7 +111,7 @@ if sub == "選択してください":
 
 df_raw = load_data(sub)
 if df_raw.empty:
-    st.warning("CSVファイルが見つかりません。ファイル名を確認してください。")
+    st.warning("CSVファイルが見つかりません。")
     st.stop()
 
 # --- フィルター設定 ---
@@ -191,17 +190,19 @@ elif sub == "入試数学の定石（数Ⅲ）":
         
         st.write("**【解答】**")
         ans_raw = str(row["answer"])
-        if re.search(r'[ぁ-んァ-ヶ亜-熙]', ans_raw):
-            st.markdown(format_math_text(ans_raw))
-        else:
+        # 数式単体（LaTeX）の表示
+        if not re.search(r'[ぁ-んァ-ヶ亜-熙]', ans_raw):
             prefix = "y' = " if is_diff else ""
             st.latex(prefix + ans_raw.replace("$", "").strip())
+        else:
+            st.write(ans_raw)
         
         if "explanation" in row and pd.notna(row["explanation"]):
             st.write("**📝 ポイント解説**")
+            # st.markdown は $ で囲まれた部分を自動で数式としてレンダリングします
             st.markdown(f"""
             <div class="explanation-box">
-                {format_math_text(row["explanation"])}
+                {row["explanation"]}
             </div>
             """, unsafe_allow_html=True)
         
