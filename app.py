@@ -57,10 +57,9 @@ def load_data(subject):
         "入試数学の定石（ⅠAⅡB C）": "math_std.csv"
     }
     try:
+        # csv読み込み時に、勝手に \ を解釈されないよう engine='python' を推奨
         df = pd.read_csv(file_map[subject], encoding="utf-8-sig").dropna(how='all')
         df.columns = df.columns.str.strip()
-        # 全データに対してトリミング
-        df = df.apply(lambda x: x.str.strip() if x.dtype == "object" else x)
         return df
     except:
         return pd.DataFrame()
@@ -80,7 +79,7 @@ if sub == "選択してください":
     st.markdown("""
     <div class="concept-section">
         <strong>■ Goal</strong><br>
-        ・<b>英単語</b>：リーディングで「見て意味がわかる」単語を増やす。基本的にはシス単本体を使うこと。これはあくまでも補助です。<br>
+        ・<b>英単語</b>：リーディングで「見て意味がわかる」単語を増やす。<br>
         ・<b>数学</b>：入試数学の定石を定着させ、基礎力をつける。<br><br>
         <strong>■ Strategy</strong><br>
         ① 入試問題を解くための「基本」を即答できるレベルにする。<br>
@@ -102,8 +101,6 @@ if sub == "システム英単語":
     filter_keyword, filter_col = lv_map[selected_filter], "level"
 else:
     all_cats = df_raw["category"].unique().tolist()
-    # 優先順位付け（微分法、積分法を上に）
-    priority_kw = "積分" if "数Ⅲ" in sub else "【"
     priority_cats = [c for c in all_cats if any(kw in str(c) for kw in ["微分", "積分", "極限"])]
     other_cats = [c for c in all_cats if c not in priority_cats]
     cats = ["すべて"] + sorted(priority_cats) + sorted(other_cats)
@@ -120,7 +117,6 @@ if "current_sub" not in st.session_state or st.session_state.current_sub != sub 
     st.session_state.df = df_f.sample(frac=1).reset_index(drop=True)
     st.session_state.idx = 0
     st.session_state.answered = False
-    if "choices" in st.session_state: del st.session_state.choices
 
 if st.session_state.df.empty:
     st.warning("該当する問題がありません。")
@@ -130,29 +126,27 @@ row = st.session_state.df.iloc[st.session_state.idx % len(st.session_state.df)]
 
 # --- 表示ロジック：英単語 ---
 if sub == "システム英単語":
+    # (省略：英単語ロジックは変更なし)
     word = str(row["question"])
     sentence = re.sub(re.escape(word), f"<span class='highlight'>{word}</span>", str(row["sentence"]), flags=re.IGNORECASE)
     st.markdown(f'<div class="card orange-card">{sentence}</div>', unsafe_allow_html=True)
-    
     if "choices" not in st.session_state:
         ans_list = [x.strip() for x in re.split(r'[,、;]', str(row["all_answers"])) if x.strip()]
         st.session_state.correct = ans_list[0]
         dummies = [x.strip() for x in re.split(r'[,、;]', str(row["dummy_pool"])) if x.strip() and x.strip() != st.session_state.correct]
         st.session_state.choices = random.sample([st.session_state.correct] + random.sample(dummies, min(3, len(dummies))), 4)
-    
     c1, c2 = st.columns(2)
     for i, val in enumerate(st.session_state.choices):
         with (c1 if i % 2 == 0 else c2):
             if st.button(val, key=f"t_{st.session_state.idx}_{i}", disabled=st.session_state.answered):
                 st.session_state.selected, st.session_state.answered = val, True
                 st.rerun()
-    
     if st.session_state.answered:
         if st.session_state.selected == st.session_state.correct: st.success("正解")
         else: st.error(f"正解：{st.session_state.correct}")
         st.write(f"意味：{row['all_answers']}")
         if st.button("次の問題へ"):
-            del st.session_state.choices
+            if "choices" in st.session_state: del st.session_state.choices
             st.session_state.idx += 1
             st.session_state.answered = False
             st.rerun()
@@ -161,7 +155,7 @@ if sub == "システム英単語":
 else:
     st.markdown(f'<div class="card blue-card">【{row["category"]}】例題</div>', unsafe_allow_html=True)
     
-    # 問題文（例題）の表示
+    # 問題文：$記号が含まれていればmarkdownとして表示
     q_text = str(row["question"])
     st.markdown(q_text)
     
@@ -171,24 +165,26 @@ else:
             st.rerun()
     else:
         st.markdown("---")
-        # 💡 定石・方針
         st.write("**💡 定石・方針**")
         st.info(str(row['strategy']))
         
-        # 【解答】
         st.write("**【解答・略解】**")
         ans_raw = str(row["answer"])
-        # 日本語が含まれているか、または $ が含まれている場合は markdown で表示
-        if re.search(r'[ぁ-んァ-ヶ亜-熙]', ans_raw) or "$" in ans_raw:
+        
+        # 修正の核：生データとして表示されないよう、$ で囲まれていなければ強制的に囲む
+        # かつ st.latex ではなく st.markdown を使うことで表示を安定させる
+        if "$" in ans_raw:
             st.markdown(ans_raw)
         else:
-            st.latex(ans_raw.replace("$", "").strip())
+            # 数式記号が含まれる可能性が高い場合、全体を $ で囲む
+            if any(c in ans_raw for c in ['\\', '^', '_', '{', '}']):
+                st.markdown(f"${ans_raw}$")
+            else:
+                st.write(ans_raw)
         
-        # 📝 ポイント解説
         if "explanation" in row and pd.notna(row["explanation"]):
             st.write("**📝 ポイント解説**")
-            with st.container(border=True):
-                st.markdown(str(row["explanation"]))
+            st.info(str(row["explanation"]))
         
         if st.button("次の問題へ"):
             st.session_state.idx += 1
