@@ -44,7 +44,6 @@ def load_data(subject):
     }
     try:
         df = pd.read_csv(file_map[subject], encoding="utf-8-sig").dropna(how='all')
-        # 全角スペースなどを除去
         df.columns = df.columns.str.strip()
         return df
     except:
@@ -62,10 +61,10 @@ if sub == "選択してください":
 
 df_raw = load_data(sub)
 if df_raw.empty:
-    st.warning(f"{sub} のCSVファイルが見つかりません。GitHubへのアップロードを確認してください。")
+    st.warning(f"{sub} のCSVファイルが見つかりません。")
     st.stop()
 
-# --- 動的フィルター (レベル分け or 分野分け) ---
+# --- 動的フィルター ---
 selected_filter = "すべて"
 if sub == "システム英単語":
     lv_map = {"すべて":"All", "Fundamental (1-600)":"Fundamental", "Essential (601-1200)":"Essential", "Advanced (1201-1700)":"Advanced", "Final (1701-2027)":"Final"}
@@ -73,7 +72,6 @@ if sub == "システム英単語":
     filter_keyword = lv_map[selected_filter]
     filter_col = "level"
 else:
-    # 数学：category列から自動生成
     if "category" in df_raw.columns:
         cats = ["すべて"] + sorted(df_raw["category"].unique().tolist())
     else:
@@ -83,7 +81,6 @@ else:
     filter_keyword = selected_filter
     filter_col = "category"
 
-# --- 初期化 ---
 if ("current_sub" not in st.session_state or st.session_state.current_sub != sub or 
     st.session_state.get("last_filter") != selected_filter):
     
@@ -129,6 +126,7 @@ if sub == "システム英単語":
         else: st.error(f"正解：{st.session_state.correct}")
         st.write(f"意味：{row['all_answers']}")
         if "explanation" in row and pd.notna(row["explanation"]):
+            # 英単語の解説内にもし $数式$ があれば自動レンダリング
             st.markdown(f'<div class="explanation-box"><b>解説:</b><br>{row["explanation"]}</div>', unsafe_allow_html=True)
         if st.button("次の問題へ"):
             del st.session_state.choices
@@ -148,15 +146,19 @@ elif sub == "数Ⅲ積分 定石":
         st.info(f"💡 定石：{row['strategy']}")
         st.write("**【解答】**")
         
-        # 答えに日本語が混じっている場合は st.write、数式だけなら st.latex
+        # 解答が数式のみならlatex、日本語が混じっているなら markdown (これで $数式$ が変換される)
         ans_text = str(row["answer"])
         if re.search(r'[ぁ-んァ-ヶ亜-熙]', ans_text):
-            st.write(ans_text)
+            # 日本語と数式が混在していても、 $...$ で囲まれていれば綺麗に表示される
+            st.markdown(ans_text)
         else:
             st.latex(ans_text)
         
         if "explanation" in row and pd.notna(row["explanation"]):
-            st.markdown(f'<div class="explanation-box"><b>📝 解説:</b><br>{row["explanation"]}</div>', unsafe_allow_html=True)
+            # 解説ボックス内も markdown でレンダリング。数式は $...$ で囲んで書くこと。
+            st.write("---")
+            st.markdown(f"**📝 詳しい解説:**")
+            st.markdown(row["explanation"])
         
         if st.button("次の問題へ"):
             st.session_state.idx += 1
