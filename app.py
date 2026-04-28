@@ -15,7 +15,7 @@ st.markdown("""
 /* 背景全体の設定 */
 .stApp { background:#f8fafc; }
 
-/* カードの設定（背景：白、文字：黒） */
+/* Card Settings */
 .card { 
     background-color: white !important; 
     padding: 22px; 
@@ -24,13 +24,13 @@ st.markdown("""
     margin-bottom: 1rem; 
 }
 
-/* ★Macのダークモード対策：数式の文字色を「真っ黒」に固定 */
+/* Latex Settings for Dark Mode */
 .stLatex, .stLatex p, .stLatex span, .stLatex svg {
     color: #000000 !important;
-    fill: #000000 !important; /* 数式が画像(SVG)として表示される場合用 */
+    fill: #000000 !important;
 }
 
-/* カード内の文章も黒に固定 */
+/* Text Colors */
 .card div, .card p, .card span, .card h1, .card h2, .card h3 {
     color: #111111 !important;
 }
@@ -39,6 +39,8 @@ st.markdown("""
 .blue-card   { border-left: 8px solid #2196f3; }
 .stButton button { width: 100%; border-radius: 12px; font-weight: 800; min-height: 50px; }
 .tango-btn button { background-color: #fff4e6 !important; color: #ff9800 !important; border: 2px solid #ff9800 !important; }
+</style>
+""", unsafe_allow_html=True)
 </style>
 """, unsafe_allow_html=True)
 </style>
