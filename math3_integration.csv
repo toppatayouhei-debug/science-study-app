@@ -1,4 +1,21 @@
-question,strategy,answer
-\int x \cos x dx,部分積分法,x \sin x + \cos x + C
-\int \frac{f'(x)}{f(x)} dx,対数積分法,\log |f(x)| + C
-\int \sin^2 x dx,半角の公式で次数下げ,\frac{1}{2}x - \frac{1}{4}\sin 2x + C
+category,question,strategy,answer,explanation
+置換積分,x(x^2+1)^3,$x^2+1=t$ と置換,\frac{1}{8}(x^2+1)^4+C,$f(g(x))g'(x)$ の形を見つけるのがコツです。
+置換積分,\frac{x}{\sqrt{x+1}},$x+1=t$ または $\sqrt{x+1}=t$,`\frac{2}{3}(x-2)\sqrt{x+1}+C$,根号を丸ごと $t$ と置くと計算が楽になることが多いです。
+置換積分,\frac{\log x}{x},$\log x = t$ と置換,\frac{1}{2}(\log x)^2+C,$\frac{1}{x}$ が $\log x$ の微分であることを利用します。
+置換積分,\sin^3 x,$\sin x(1-\cos^2 x)$ に変形,-\cos x + \frac{1}{3}\cos^3 x+C,$\cos x = t$ と置換する形に持ち込みます。
+部分積分,x \cos x,部分積分法,x \sin x + \cos x + C,$x$ を消すために、$\cos x$ を積分側に回します。
+部分積分,x^2 \log x,部分積分法,\frac{x^3}{3}\log x - \frac{x^3}{9}+C,$\log x$ は常に「微分側」として扱います。
+部分積分,\log x,$1 \cdot \log x$ と考える,x \log x - x + C,非常に有名な形なので暗記しておくと便利です。
+部分積分,e^x \sin x,2回部分積分して同型出現,`\frac{1}{2}e^x(\sin x - \cos x)+C$,積分しても形が変わらない関数同士の組み合わせです。
+指数・対数,\frac{1}{x \log x},$\frac{1/x}{\log x}$ と変形,`\log,\log x
+指数・対数,\frac{e^x}{e^x+1},対数積分法,\log(e^x+1)+C,分母を微分すると分子になることに注目します。
+分数関数,\frac{1}{x^2-1},部分分数分解,`\frac{1}{2}\log,\frac{x-1}{x+1}
+分数関数,\frac{x+5}{x^2+x-2},部分分数分解,`2\log,x-1
+三角関数,\sin^2 x,半角の公式,\frac{x}{2}-\frac{\sin 2x}{4}+C,$\sin^2 x = \frac{1-\cos 2x}{2}$ を使います。
+三角関数,\tan x,$\frac{\sin x}{\cos x}$ に変形,`-\log,\cos x
+三角関数,\frac{1}{\cos x},分母分子に $\cos x$ を掛ける,`\frac{1}{2}\log,\frac{1+\sin x}{1-\sin x}
+特殊置換,\frac{1}{x^2+1},$x = \tan \theta$,\theta + C (または $\arctan x$),$1+\tan^2 \theta = 1/\cos^2 \theta$ を利用。
+特殊置換,\sqrt{a^2-x^2},$x = a \sin \theta$,$x=a\sin\theta$ 置換,半円の面積として解くことも可能です。
+指数・対数,x e^{-x^2},置換積分,-\frac{1}{2}e^{-x^2}+C,指数の肩にある $-x^2$ の微分が外側にあります。
+分数関数,\frac{x^2}{x+1},次数を下げる,`\frac{x^2}{2}-x+\log,x+1
+三角関数,\cos^2 x,半角の公式,\frac{x}{2}+\frac{\sin 2x}{4}+C,$\cos^2 x = \frac{1+\cos 2x}{2}$ を使います。
