@@ -10,31 +10,37 @@ st.set_page_config(page_title="理系学習アプリ", page_icon="🧬")
 
 st.markdown("""
 <style>
-/* 背景を薄いグレーに */
-.stApp { background:#f0f2f5; }
+st.markdown("""
+<style>
+/* 背景全体の設定 */
+.stApp { background:#f8fafc; }
 
-/* カードの設定：背景は白、文字は絶対黒 */
+/* カードの設定（背景：白、文字：黒） */
 .card { 
     background-color: white !important; 
-    padding: 25px; 
+    padding: 22px; 
     border-radius: 18px; 
-    box-shadow: 0 4px 15px rgba(0,0,0,0.1); 
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05); 
     margin-bottom: 1rem; 
 }
 
-/* ★ここが重要：数式(Latex)の文字色を強制的に黒にする */
-.stLatex { 
-    color: #000000 !important; 
+/* ★Macのダークモード対策：数式の文字色を「真っ黒」に固定 */
+.stLatex, .stLatex p, .stLatex span, .stLatex svg {
+    color: #000000 !important;
+    fill: #000000 !important; /* 数式が画像(SVG)として表示される場合用 */
 }
 
-/* その他デザイン */
+/* カード内の文章も黒に固定 */
+.card div, .card p, .card span, .card h1, .card h2, .card h3 {
+    color: #111111 !important;
+}
+
 .orange-card { border-left: 8px solid #ff9800; }
 .blue-card   { border-left: 8px solid #2196f3; }
 .stButton button { width: 100%; border-radius: 12px; font-weight: 800; min-height: 50px; }
 .tango-btn button { background-color: #fff4e6 !important; color: #ff9800 !important; border: 2px solid #ff9800 !important; }
-
-/* 答えのテキストなども念のため黒に固定 */
-.stMarkdown, p, div { color: #111111 !important; }
+</style>
+""", unsafe_allow_html=True)
 </style>
 """, unsafe_allow_html=True)
 
