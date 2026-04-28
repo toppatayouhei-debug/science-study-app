@@ -45,6 +45,8 @@ st.markdown("""
 .orange-card { border-left: 8px solid #ff9800 !important; }
 .blue-card { border-left: 8px solid #2196f3 !important; }
 .stButton button { width: 100%; border-radius: 10px; font-weight: bold; min-height: 45px; }
+/* 数式と日本語が混ざった時のフォント調整 */
+.stMarkdown p { font-size: 1.1rem !important; line-height: 1.6; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -75,8 +77,8 @@ if sub == "選択してください":
     st.markdown(f"""
     <div class="concept-section">
         <strong>■ コンセプト</strong><br>
-        ・<b>英単語</b>：リーディングで「見て意味がわかる」単語を増やす。基本はシス単。手元に単語帳がないとき用。<br>
-        ・<b>数学</b>：入試数学の定石を定着させ、応用問題に立ち向かう基礎力をつける。<br><br>
+        ・<b>英単語</b>：リーディングで「見て意味がわかる」単語を増やす。<br>
+        ・<b>数学</b>：入試数学の定石を定着させ、基礎力をつける。<br><br>
         <strong>■ 学習の手順</strong><br>
         ① 使うべき定石をすぐに思い浮かぶレベルにする。<br>
         ② 手を動かして計算し、計算力をつける。<br>
@@ -159,24 +161,24 @@ elif sub == "入試数学の定石（数Ⅲ）":
     else:
         st.markdown("---")
         
-        # 定石・方針の表示（数式を確実にレンダリングさせる処理）
+        # 💡 定石・方針
         st.write("**💡 定石・方針**")
-        strategy_text = str(row['strategy']).replace('$', '')
-        st.markdown(f"$\text{{{strategy_text}}}$") # 文全体を強制的に数式モードにする
+        st.markdown(str(row['strategy']))
         
+        # 【解答】
         st.write("**【解答】**")
         ans_raw = str(row["answer"])
         if not re.search(r'[ぁ-んァ-ヶ亜-熙]', ans_raw):
             prefix = "y' = " if is_diff else ""
             st.latex(prefix + ans_raw.replace("$", "").strip())
         else:
-            st.write(ans_raw)
+            st.markdown(ans_raw)
         
+        # 📝 ポイント解説
         if "explanation" in row and pd.notna(row["explanation"]):
             st.write("**📝 ポイント解説**")
             with st.container(border=True):
-                # 解説も同様にMarkdownでレンダリング
-                st.write(row["explanation"])
+                st.markdown(str(row["explanation"]))
         
         if st.button("次の問題へ"):
             st.session_state.idx += 1
