@@ -35,18 +35,22 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. 補助関数 (数式表示の揺れを吸収)
+# 2. 補助関数 (表記の揺れを徹底排除)
 # ==========================================
 def format_math_text(text):
-    """CSV内の数式表記の揺れ（$の有無など）を補正してMarkdown用に整える"""
+    """数式内の全角記号やゴミを取り除き、確実に数式レンダリングさせる"""
     if pd.isna(text): return ""
     text = str(text).strip()
     
-    # ゴミとして残った $ を一旦すべて除去
+    # 典型的な入力ミスを置換
+    text = text.replace("−", "-").replace("　", " ").replace("‘", "").replace("’", "")
+    
+    # ゴミの $ を掃除
     clean_text = text.replace("$", "").strip()
     
-    # 数式記号が含まれる場合、全体を $ で囲み直してレンダリングさせる
-    if any(c in clean_text for c in ["\\", "^", "_", "{", "}"]):
+    # 数式キーワードが含まれるなら、$ で囲んで Markdown として返す
+    keywords = ["\\", "^", "_", "{", "}", "/", "log", "sin", "cos", "tan", "int"]
+    if any(k in clean_text.lower() for k in keywords):
         return f"${clean_text}$"
     return clean_text
 
@@ -77,16 +81,10 @@ if df_raw.empty:
     st.warning(f"{sub} のCSVファイルが見つかりません。")
     st.stop()
 
-# --- フィルター設定 ---
+# --- 分野・レベルフィルター ---
 selected_filter = "すべて"
 if sub == "システム英単語":
-    lv_map = {
-        "すべて": "All",
-        "Fundamental (1-600)": "Fundamental",
-        "Essential (601-1200)": "Essential",
-        "Advanced (1201-1700)": "Advanced",
-        "Final (1701-2027)": "Final"
-    }
+    lv_map = {"すべて":"All", "Fundamental (1-600)":"Fundamental", "Essential (601-1200)":"Essential", "Advanced (1201-1700)":"Advanced", "Final (1701-2027)":"Final"}
     selected_filter = st.sidebar.radio("レベルを選択", list(lv_map.keys()))
     filter_keyword = lv_map[selected_filter]
     filter_col = "level"
@@ -100,7 +98,7 @@ else:
     filter_keyword = selected_filter
     filter_col = "category"
 
-# --- セッション初期化 ---
+# --- セッション管理 ---
 if ("current_sub" not in st.session_state or st.session_state.current_sub != sub or 
     st.session_state.get("last_filter") != selected_filter):
     
@@ -122,10 +120,8 @@ if st.session_state.df.empty:
 row = st.session_state.df.iloc[st.session_state.idx % len(st.session_state.df)]
 
 # ==========================================
-# 4. コンテンツ表示
+# 4. 画面表示
 # ==========================================
-
-# --- 英単語 ---
 if sub == "システム英単語":
     word = str(row["question"])
     sentence = re.sub(re.escape(word), f"<span class='highlight'>{word}</span>", str(row["sentence"]), flags=re.IGNORECASE)
@@ -149,15 +145,12 @@ if sub == "システム英単語":
         if st.session_state.selected == st.session_state.correct: st.success("正解！")
         else: st.error(f"正解：{st.session_state.correct}")
         st.write(f"意味：{row['all_answers']}")
-        if "explanation" in row and pd.notna(row["explanation"]):
-            st.markdown(f'<div class="explanation-box"><b>解説:</b><br>{format_math_text(row["explanation"])}</div>', unsafe_allow_html=True)
         if st.button("次の問題へ"):
             del st.session_state.choices
             st.session_state.idx += 1
             st.session_state.answered = False
             st.rerun()
 
-# --- 数学 ---
 elif sub == "数Ⅲ積分 定石":
     st.markdown(f'<div class="card blue-card">【{row["category"]}】次の不定積分を求めよ：</div>', unsafe_allow_html=True)
     st.latex(r"\int " + str(row["question"]) + r" \, dx")
@@ -170,13 +163,13 @@ elif sub == "数Ⅲ積分 定石":
         st.info(f"💡 定石：{row['strategy']}")
         st.write("**【解答】**")
         
-        ans_text = str(row["answer"])
-        # 日本語混じりかどうか判定
-        if re.search(r'[ぁ-んァ-ヶ亜-熙]', ans_text):
-            st.markdown(format_math_text(ans_text))
+        # 解答表示 (日本語混じりなら markdown、数式のみなら latex で大きく)
+        ans_raw = str(row["answer"])
+        if re.search(r'[ぁ-んァ-ヶ亜-熙]', ans_raw):
+            st.markdown(format_math_text(ans_raw))
         else:
-            # 数式のみなら LaTeX モード
-            st.latex(ans_text.replace("$", ""))
+            # $ を取り除いて純粋な数式として表示
+            st.latex(ans_raw.replace("$", "").replace(" ", ""))
         
         if "explanation" in row and pd.notna(row["explanation"]):
             st.write("---")
