@@ -41,6 +41,16 @@ st.markdown("""
     box-shadow: 0 4px 10px rgba(0,0,0,0.08) !important; 
     margin-bottom: 10px !important;
 }
+.explanation-box {
+    background-color: #f8fafc; 
+    padding: 15px; 
+    border-radius: 8px; 
+    border: 1px solid #e2e8f0; 
+    line-height: 1.7; 
+    color: #334155; 
+    font-size: 0.95rem;
+    margin-bottom: 20px;
+}
 .highlight { color: #ff9800 !important; font-weight: bold !important; }
 .orange-card { border-left: 8px solid #ff9800 !important; }
 .blue-card { border-left: 8px solid #2196f3 !important; }
@@ -73,7 +83,7 @@ def load_data(subject):
         return pd.DataFrame()
 
 # ==========================================
-# 3. メイン画面表示（タイトル & イラスト）
+# 3. メイン画面表示
 # ==========================================
 st.markdown("""
 <div class="header-container">
@@ -100,10 +110,9 @@ if sub == "選択してください":
     st.info("← 左のサイドバーから科目を選択してください。")
     st.stop()
 
-# --- データロード ---
 df_raw = load_data(sub)
 if df_raw.empty:
-    st.warning("CSVファイルが見つかりません。")
+    st.warning("CSVファイルが見つかりません。ファイル名を確認してください。")
     st.stop()
 
 # --- フィルター設定 ---
@@ -176,8 +185,10 @@ elif sub == "入試数学の定石（数Ⅲ）":
             st.session_state.answered = True
             st.rerun()
     else:
-        st.write("**💡 定石：**")
-        st.markdown(format_math_text(row['strategy']))
+        st.markdown("---")
+        st.write("**💡 定石・方針**")
+        st.info(row['strategy'])
+        
         st.write("**【解答】**")
         ans_raw = str(row["answer"])
         if re.search(r'[ぁ-んァ-ヶ亜-熙]', ans_raw):
@@ -187,9 +198,12 @@ elif sub == "入試数学の定石（数Ⅲ）":
             st.latex(prefix + ans_raw.replace("$", "").strip())
         
         if "explanation" in row and pd.notna(row["explanation"]):
-            st.write("---")
-            st.markdown(f"**📝 解説:**")
-            st.markdown(format_math_text(row["explanation"]))
+            st.write("**📝 ポイント解説**")
+            st.markdown(f"""
+            <div class="explanation-box">
+                {format_math_text(row["explanation"])}
+            </div>
+            """, unsafe_allow_html=True)
         
         if st.button("次の問題へ"):
             st.session_state.idx += 1
