@@ -4,7 +4,7 @@ import random
 import re
 
 # ==========================================
-# 1. デザイン設定 (CSS)
+# 1. デザイン設定
 # ==========================================
 st.set_page_config(page_title="理系学習アプリ", page_icon="🧬")
 
@@ -35,23 +35,29 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. 補助関数 (表記の揺れを徹底排除)
+# 2. 補助関数 (数式判定を大幅強化)
 # ==========================================
 def format_math_text(text):
-    """数式内の全角記号やゴミを取り除き、確実に数式レンダリングさせる"""
+    """x\sinx のようなスペースなしの数式も検知して $ で囲む"""
     if pd.isna(text): return ""
     text = str(text).strip()
     
-    # 典型的な入力ミス（全角マイナス・全角スペース・引用符）を自動修正
+    # 全角・ゴミの除去
     text = text.replace("−", "-").replace("　", " ").replace("‘", "").replace("’", "")
     
-    # ゴミの $ を掃除
+    # すでに $ で囲まれている場合はそのまま
+    if text.startswith("$") and text.endswith("$"):
+        return text
+    
     clean_text = text.replace("$", "").strip()
     
-    # 数式キーワードが含まれるなら、$ で囲んで Markdown として返す
-    # これにより、日本語の中に \tan などが混じっていても綺麗に表示される
-    keywords = ["\\", "^", "_", "{", "}", "/", "log", "sin", "cos", "tan", "int", "theta", "pi"]
-    if any(k in clean_text.lower() for k in keywords):
+    # 判定基準：バックスラッシュがある、または sin, cos, tan, log 等のキーワードが含まれる
+    # または + や - や / が含まれる「式っぽい」もの
+    keywords = ["\\", "^", "_", "{", "}", "/", "sin", "cos", "tan", "log", "int", "theta", "pi", "exp"]
+    is_math = any(k in clean_text.lower() for k in keywords) or any(c in clean_text for c in ["+", "=", "(", ")"])
+    
+    if is_math:
+        # \sin のあとにスペースがない場合に備え、表示用に調整して $ で囲む
         return f"${clean_text}$"
     return clean_text
 
@@ -82,7 +88,7 @@ if df_raw.empty:
     st.warning(f"{sub} のCSVファイルが見つかりません。")
     st.stop()
 
-# --- フィルター設定 ---
+# --- フィルター ---
 selected_filter = "すべて"
 if sub == "システム英単語":
     lv_map = {"すべて":"All", "Fundamental (1-600)":"Fundamental", "Essential (601-1200)":"Essential", "Advanced (1201-1700)":"Advanced", "Final (1701-2027)":"Final"}
@@ -99,7 +105,7 @@ else:
     filter_keyword = selected_filter
     filter_col = "category"
 
-# --- セッション管理 ---
+# --- セッション初期化 ---
 if ("current_sub" not in st.session_state or st.session_state.current_sub != sub or 
     st.session_state.get("last_filter") != selected_filter):
     
@@ -121,10 +127,9 @@ if st.session_state.df.empty:
 row = st.session_state.df.iloc[st.session_state.idx % len(st.session_state.df)]
 
 # ==========================================
-# 4. 画面表示
+# 4. 表示
 # ==========================================
 
-# --- 【英単語モード】 ---
 if sub == "システム英単語":
     word = str(row["question"])
     sentence = re.sub(re.escape(word), f"<span class='highlight'>{word}</span>", str(row["sentence"]), flags=re.IGNORECASE)
@@ -156,9 +161,9 @@ if sub == "システム英単語":
             st.session_state.answered = False
             st.rerun()
 
-# --- 【数学モード】 ---
 elif sub == "数Ⅲ積分 定石":
     st.markdown(f'<div class="card blue-card">【{row["category"]}】次の不定積分を求めよ：</div>', unsafe_allow_html=True)
+    # 問題文は常に latex モード
     st.latex(r"\int " + str(row["question"]) + r" \, dx")
     
     if not st.session_state.answered:
@@ -166,17 +171,17 @@ elif sub == "数Ⅲ積分 定石":
             st.session_state.answered = True
             st.rerun()
     else:
-        # 定石も format_math_text を通して綺麗に数式化
         st.write("**💡 定石：**")
         st.markdown(format_math_text(row['strategy']))
         
         st.write("**【解答】**")
         ans_raw = str(row["answer"])
-        # 日本語混じりなら markdown、数式のみなら latex で大きく表示
+        # 日本語を含むかどうかで出し方を変える
         if re.search(r'[ぁ-んァ-ヶ亜-熙]', ans_raw):
             st.markdown(format_math_text(ans_raw))
         else:
-            st.latex(ans_raw.replace("$", "").replace(" ", ""))
+            # 数式のみの場合は latex モード（ゴミ掃除付き）
+            st.latex(ans_raw.replace("$", "").strip())
         
         if "explanation" in row and pd.notna(row["explanation"]):
             st.write("---")
