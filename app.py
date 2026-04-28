@@ -42,14 +42,15 @@ def format_math_text(text):
     if pd.isna(text): return ""
     text = str(text).strip()
     
-    # 典型的な入力ミスを置換
+    # 典型的な入力ミス（全角マイナス・全角スペース・引用符）を自動修正
     text = text.replace("−", "-").replace("　", " ").replace("‘", "").replace("’", "")
     
     # ゴミの $ を掃除
     clean_text = text.replace("$", "").strip()
     
     # 数式キーワードが含まれるなら、$ で囲んで Markdown として返す
-    keywords = ["\\", "^", "_", "{", "}", "/", "log", "sin", "cos", "tan", "int"]
+    # これにより、日本語の中に \tan などが混じっていても綺麗に表示される
+    keywords = ["\\", "^", "_", "{", "}", "/", "log", "sin", "cos", "tan", "int", "theta", "pi"]
     if any(k in clean_text.lower() for k in keywords):
         return f"${clean_text}$"
     return clean_text
@@ -81,7 +82,7 @@ if df_raw.empty:
     st.warning(f"{sub} のCSVファイルが見つかりません。")
     st.stop()
 
-# --- 分野・レベルフィルター ---
+# --- フィルター設定 ---
 selected_filter = "すべて"
 if sub == "システム英単語":
     lv_map = {"すべて":"All", "Fundamental (1-600)":"Fundamental", "Essential (601-1200)":"Essential", "Advanced (1201-1700)":"Advanced", "Final (1701-2027)":"Final"}
@@ -122,6 +123,8 @@ row = st.session_state.df.iloc[st.session_state.idx % len(st.session_state.df)]
 # ==========================================
 # 4. 画面表示
 # ==========================================
+
+# --- 【英単語モード】 ---
 if sub == "システム英単語":
     word = str(row["question"])
     sentence = re.sub(re.escape(word), f"<span class='highlight'>{word}</span>", str(row["sentence"]), flags=re.IGNORECASE)
@@ -145,12 +148,15 @@ if sub == "システム英単語":
         if st.session_state.selected == st.session_state.correct: st.success("正解！")
         else: st.error(f"正解：{st.session_state.correct}")
         st.write(f"意味：{row['all_answers']}")
+        if "explanation" in row and pd.notna(row["explanation"]):
+            st.markdown(f'<div class="explanation-box"><b>解説:</b><br>{format_math_text(row["explanation"])}</div>', unsafe_allow_html=True)
         if st.button("次の問題へ"):
             del st.session_state.choices
             st.session_state.idx += 1
             st.session_state.answered = False
             st.rerun()
 
+# --- 【数学モード】 ---
 elif sub == "数Ⅲ積分 定石":
     st.markdown(f'<div class="card blue-card">【{row["category"]}】次の不定積分を求めよ：</div>', unsafe_allow_html=True)
     st.latex(r"\int " + str(row["question"]) + r" \, dx")
@@ -160,15 +166,16 @@ elif sub == "数Ⅲ積分 定石":
             st.session_state.answered = True
             st.rerun()
     else:
-        st.info(f"💡 定石：{row['strategy']}")
-        st.write("**【解答】**")
+        # 定石も format_math_text を通して綺麗に数式化
+        st.write("**💡 定石：**")
+        st.markdown(format_math_text(row['strategy']))
         
-        # 解答表示 (日本語混じりなら markdown、数式のみなら latex で大きく)
+        st.write("**【解答】**")
         ans_raw = str(row["answer"])
+        # 日本語混じりなら markdown、数式のみなら latex で大きく表示
         if re.search(r'[ぁ-んァ-ヶ亜-熙]', ans_raw):
             st.markdown(format_math_text(ans_raw))
         else:
-            # $ を取り除いて純粋な数式として表示
             st.latex(ans_raw.replace("$", "").replace(" ", ""))
         
         if "explanation" in row and pd.notna(row["explanation"]):
