@@ -4,32 +4,39 @@ import random
 import re
 
 # ==========================================
-# 1. ページ設定 & デザイン (CSS)
+# 1. デザイン設定 (CSS)
 # ==========================================
 st.set_page_config(page_title="理系学習アプリ", page_icon="🧬")
 
 st.markdown("""
 <style>
 .stApp { background-color: #f0f2f5 !important; }
+
+/* カードの枠組み */
 .card { 
     background-color: white !important; 
     padding: 20px !important; 
     border-radius: 15px !important; 
     box-shadow: 0 4px 12px rgba(0,0,0,0.1) !important; 
-    margin-bottom: 15px !important; 
+    margin-bottom: 15px !important;
+    color: #111111 !important;
 }
-/* 数式の視認性確保（座布団スタイル） */
-.stLatex {
-    background-color: white !important;
-    padding: 12px !important;
-    border-radius: 10px !important;
-    display: inline-block !important;
+
+/* 数学の枠内表示設定 */
+.math-box {
+    display: block;
+    margin: 10px 0;
+    padding: 10px;
+    background: #ffffff;
+    text-align: center;
 }
-.stLatex, .stLatex * {
-    color: #000000 !important;
-    fill: #000000 !important;
+
+/* オレンジハイライト */
+.highlight {
+    color: #ff9800 !important;
+    font-weight: bold !important;
 }
-.card *, p, span, div, label { color: #111111 !important; }
+
 .orange-card { border-left: 8px solid #ff9800 !important; }
 .blue-card { border-left: 8px solid #2196f3 !important; }
 .stButton button { width: 100%; border-radius: 10px; font-weight: bold; min-height: 45px; }
@@ -46,7 +53,6 @@ def load_data(subject):
         except:
             return pd.DataFrame()
     else:
-        # 数Ⅲ積分 定石 20選
         return pd.DataFrame([
             {"question": r"x \cos x", "strategy": "部分積分法", "answer": r"x \sin x + \cos x + C"},
             {"question": r"\frac{f'(x)}{f(x)}", "strategy": "対数積分法", "answer": r"\log |f(x)| + C"},
@@ -71,7 +77,7 @@ def load_data(subject):
         ])
 
 # ==========================================
-# 3. メインロジック
+# 3. メイン処理
 # ==========================================
 st.sidebar.title("🧬 学習メニュー")
 sub = st.sidebar.selectbox("科目を選択", ["選択してください", "システム英単語", "数Ⅲ積分 定石"])
@@ -80,17 +86,24 @@ if sub == "選択してください":
     st.info("← サイドバーから科目を選択してください。")
     st.stop()
 
-# 初期化
-if "current_sub" not in st.session_state or st.session_state.current_sub != sub:
+# --- サイドバーのレベル選択 (ここを修正しました) ---
+selected_level = "すべて"
+if sub == "システム英単語":
+    lv_map = {"すべて":"All", "1-600":"Fundamental", "601-1200":"Essential", "1201-1700":"Advanced", "1701-2027":"Final"}
+    selected_level = st.sidebar.radio("レベルを選択", list(lv_map.keys()))
+
+# --- 初期化 & データ抽出 ---
+if "current_sub" not in st.session_state or st.session_state.current_sub != sub or st.session_state.get("last_level") != selected_level:
     for key in list(st.session_state.keys()):
-        if key != "current_sub": del st.session_state[key]
+        if key not in ["current_sub", "last_level"]: del st.session_state[key]
+    
     st.session_state.current_sub = sub
+    st.session_state.last_level = selected_level
+    
     df_raw = load_data(sub)
-    if sub == "システム英単語" and not df_raw.empty:
-        lv_map = {"すべて":"All", "1-600":"Fundamental", "601-1200":"Essential", "1201-1700":"Advanced", "1701-2027":"Final"}
-        sel = st.sidebar.radio("レベル選択", list(lv_map.keys()))
-        if sel != "すべて":
-            df_raw = df_raw[df_raw["level"].astype(str).str.contains(lv_map[sel], case=False, na=False)]
+    if sub == "システム英単語" and not df_raw.empty and selected_level != "すべて":
+        df_raw = df_raw[df_raw["level"].astype(str).str.contains(lv_map[selected_level], case=False, na=False)]
+    
     st.session_state.df = df_raw.sample(frac=1).reset_index(drop=True)
     st.session_state.idx = 0
     st.session_state.answered = False
@@ -105,14 +118,16 @@ row = df.iloc[st.session_state.idx % len(df)]
 # --- 英単語表示 ---
 if sub == "システム英単語":
     word = str(row["question"])
-    sentence = re.sub(re.escape(word), f"<span style='color:#ff9800;font-weight:bold'>{word}</span>", str(row["sentence"]), flags=re.IGNORECASE)
+    sentence = re.sub(re.escape(word), f"<span class='highlight'>{word}</span>", str(row["sentence"]), flags=re.IGNORECASE)
     st.markdown(f'<div class="card orange-card">{sentence}</div>', unsafe_allow_html=True)
+    
     if "choices" not in st.session_state:
         ans_list = [x.strip() for x in re.split(r'[,、;]', str(row["all_answers"])) if x.strip()]
         correct = ans_list[0]
         dummies = [x.strip() for x in re.split(r'[,、;]', str(row["dummy_pool"])) if x.strip() and x.strip() != correct]
         st.session_state.choices = random.sample([correct] + random.sample(dummies, min(3, len(dummies))), 4)
         st.session_state.correct = correct
+    
     c1, c2 = st.columns(2)
     for i, val in enumerate(st.session_state.choices):
         with (c1 if i % 2 == 0 else c2):
@@ -131,18 +146,23 @@ if sub == "システム英単語":
 
 # --- 数学表示 ---
 elif sub == "数Ⅲ積分 定石":
-    st.markdown('<div class="card blue-card">', unsafe_allow_html=True)
-    st.write("次の不定積分を求めよ：")
-    # 積分記号と問題を合体
-    st.latex(r"\int " + str(row["question"]) + r" \, dx")
-    st.markdown('</div>', unsafe_allow_html=True)
+    q_latex = r"\int " + str(row["question"]) + r" \, dx"
+    st.markdown(f"""
+        <div class="card blue-card">
+            <p style="margin-bottom: 5px;">次の不定積分を求めよ：</p>
+            <div class="math-box">
+                $${q_latex}$$
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
     
     if not st.session_state.answered:
         if st.button("解答を確認する"):
             st.session_state.answered = True
             st.rerun()
     else:
-        st.markdown(f"**💡 定石：{row['strategy']}**")
+        st.info(f"💡 定石：{row['strategy']}")
+        st.write("**【解答】**")
         st.latex(str(row["answer"]))
         if st.button("次の問題へ"):
             st.session_state.idx += 1
