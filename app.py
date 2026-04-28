@@ -19,7 +19,7 @@ st.markdown("""
     border-radius: 18px; 
     box-shadow: 0 4px 15px rgba(0,0,0,0.05); 
     margin-bottom: 1rem; 
-}
+padding: 22px;
 .stLatex, .stLatex p, .stLatex span, .stLatex svg {
     color: #000000 !important;
     fill: #000000 !important;
