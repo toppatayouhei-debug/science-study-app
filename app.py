@@ -14,14 +14,36 @@ st.set_page_config(
 
 # 理系らしいブルー基調のCSS
 st.markdown("""
+# CSS部分をこれに上書き保存
+st.markdown("""
 <style>
 .stApp { background:#f8fafc; }
-.card { background:white; padding:22px; border-radius:18px; box-shadow:0 4px 15px rgba(0,0,0,0.05); margin-bottom:1rem; }
+/* カードの中の文字色を「#111 (ほぼ黒)」に固定 */
+.card { 
+    background:white; 
+    padding:22px; 
+    border-radius:18px; 
+    box-shadow:0 4px 15px rgba(0,0,0,0.05); 
+    margin-bottom:1rem; 
+    color: #111 !important; 
+}
 .orange-card { border-left: 8px solid #ff9800; }
 .blue-card   { border-left: 8px solid #2196f3; }
-.stButton button { width: 100%; border-radius: 12px; font-weight: 800; min-height: 50px; }
-.tango-btn button { background-color: #fff4e6 !important; color: #ff9800 !important; border: 2px solid #ff9800 !important; }
+
+/* ボタンの中の文字も見えにくい場合はここを調整 */
+.stButton button { 
+    width: 100%; 
+    border-radius: 12px; 
+    font-weight: 800; 
+    min-height: 50px; 
+}
+.tango-btn button { 
+    background-color: #fff4e6 !important; 
+    color: #ff9800 !important; 
+    border: 2px solid #ff9800 !important; 
+}
 </style>
+""", unsafe_allow_html=True)
 """, unsafe_allow_html=True)
 
 # 状態リセット関数
