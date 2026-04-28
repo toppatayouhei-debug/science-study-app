@@ -4,7 +4,7 @@ import random
 import re
 
 # ==================================================
-# 1. 基本設定（ページ名と見た目）
+# 1. 基本設定
 # ==================================================
 st.set_page_config(
     page_title="理系特化型・定石マスター",
@@ -75,17 +75,28 @@ if raw_df.empty:
     st.stop()
 
 df = raw_df
-sel_level = "All"
-if subject == "システム英単語":
-    levels = {"すべて":"All", "1-600":"Fundamental", "601-1200":"Essential", "1201-1700":"Advanced", "1701-2027":"Final"}
-    sel_level = st.sidebar.radio("レベル選択", list(levels.keys()))
-    if sel_level != "すべて":
-        df = raw_df[raw_df["level"].astype(str).str.contains(levels[sel_level], case=False, na=False)]
+sel_level_key = "すべて"
 
-if st.session_state.get("current_subject") != subject or st.session_state.get("current_filter") != str(sel_level):
+if subject == "システム英単語":
+    # 指示通りの表記に変更
+    levels_map = {
+        "すべて": "All",
+        "Fundamental (1-600)": "Fundamental",
+        "Essential (601-1200)": "Essential",
+        "Advanced (1201-1700)": "Advanced",
+        "Final (1701-2027)": "Final"
+    }
+    sel_level_key = st.sidebar.radio("レベル選択", list(levels_map.keys()))
+    
+    if sel_level_key != "すべて":
+        keyword = levels_map[sel_level_key]
+        df = raw_df[raw_df["level"].astype(str).str.contains(keyword, case=False, na=False)]
+
+# 科目やフィルターが変わったらリセット
+if st.session_state.get("current_subject") != subject or st.session_state.get("current_filter") != sel_level_key:
     reset_engine()
     st.session_state.current_subject = subject
-    st.session_state.current_filter = str(sel_level)
+    st.session_state.current_filter = sel_level_key
     st.session_state.df = df.sample(frac=1).reset_index(drop=True)
     st.session_state.idx = 0
 
