@@ -12,17 +12,17 @@ st.markdown("""
 <style>
 .stApp { background-color: #f0f2f5 !important; }
 
-/* カードの枠組み */
+/* 指示文を入れるための枠 */
 .card { 
     background-color: white !important; 
-    padding: 20px !important; 
-    border-radius: 15px !important; 
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1) !important; 
-    margin-bottom: 15px !important;
+    padding: 15px 20px !important; 
+    border-radius: 12px !important; 
+    box-shadow: 0 4px 10px rgba(0,0,0,0.08) !important; 
+    margin-bottom: 10px !important;
     color: #111111 !important;
 }
 
-/* オレンジハイライト */
+/* オレンジハイライト（英単語用） */
 .highlight {
     color: #ff9800 !important;
     font-weight: bold !important;
@@ -44,6 +44,7 @@ def load_data(subject):
         except:
             return pd.DataFrame()
     else:
+        # 数Ⅲ積分 定石 20選
         return pd.DataFrame([
             {"question": r"x \cos x", "strategy": "部分積分法", "answer": r"x \sin x + \cos x + C"},
             {"question": r"\frac{f'(x)}{f(x)}", "strategy": "対数積分法", "answer": r"\log |f(x)| + C"},
@@ -108,7 +109,7 @@ if "current_sub" not in st.session_state or st.session_state.current_sub != sub 
 
 df = st.session_state.get("df", pd.DataFrame())
 if df.empty:
-    st.warning("データがありません。")
+    st.warning("データが見つかりません。")
     st.stop()
 
 row = df.iloc[st.session_state.idx % len(df)]
@@ -142,16 +143,13 @@ if sub == "システム英単語":
             st.session_state.answered = False
             st.rerun()
 
-# --- 数学表示 (枠内に閉じ込める最終手段) ---
+# --- 数学表示 (レイアウト変更版) ---
 elif sub == "数Ⅲ積分 定石":
-    q_latex = r"\int " + str(row["question"]) + r" \, dx"
+    # 枠には指示文だけ入れる
+    st.markdown('<div class="card blue-card">次の不定積分を求めよ：</div>', unsafe_allow_html=True)
     
-    # 【重要】 st.containerを使って枠を作り、その中で st.latex を呼ぶ
-    with st.container():
-        st.markdown('<div class="card blue-card">', unsafe_allow_html=True)
-        st.write("次の不定積分を求めよ：")
-        st.latex(q_latex)
-        st.markdown('</div>', unsafe_allow_html=True)
+    # 数式は枠の外で、Streamlitの正規機能を使って表示（これで確実に綺麗に出る）
+    st.latex(r"\int " + str(row["question"]) + r" \, dx")
     
     if not st.session_state.answered:
         if st.button("解答を確認する"):
