@@ -42,7 +42,30 @@ def load_data(subject):
             {"question": r"\frac{f'(x)}{f(x)}", "strategy": "対数積分法", "answer": r"\log |f(x)| + C"},
             {"question": r"\sin^2 x", "strategy": "半角の公式で次数下げ", "answer": r"\frac{1}{2}x - \frac{1}{4}\sin 2x + C"}
         ])
-
+else:
+        # 数Ⅲ積分 定石 20選
+        return pd.DataFrame([
+            {"question": r"x \cos x", "strategy": "部分積分法", "answer": r"x \sin x + \cos x + C"},
+            {"question": r"\frac{f'(x)}{f(x)}", "strategy": "対数積分法", "answer": r"\log |f(x)| + C"},
+            {"question": r"\sin^2 x", "strategy": "半角の公式で次数下げ", "answer": r"\frac{1}{2}x - \frac{1}{4}\sin 2x + C"},
+            {"question": r"\cos^2 x", "strategy": "半角の公式で次数下げ", "answer": r"\frac{1}{2}x + \frac{1}{4}\sin 2x + C"},
+            {"question": r"\tan x", "strategy": "sin/cosに変えて対数積分", "answer": r"-\log |\cos x| + C"},
+            {"question": r"\frac{1}{\tan x}", "strategy": "cos/sinに変えて対数積分", "answer": r"\log |\sin x| + C"},
+            {"question": r"\log x", "strategy": "1・log x と考えて部分積分", "answer": r"x \log x - x + C"},
+            {"question": r"\frac{1}{x \log x}", "strategy": "1/x を分子に持ってきて対数積分", "answer": r"\log |\log x| + C"},
+            {"question": r"x e^{x}", "strategy": "部分積分法", "answer": r"(x-1)e^x + C"},
+            {"question": r"e^x \sin x", "strategy": "2回部分積分して同型出現", "answer": r"\frac{1}{2}e^x(\sin x - \cos x) + C"},
+            {"question": r"\frac{1}{x^2+a^2}", "strategy": "x = a \tan \theta と置換", "answer": r"\frac{1}{a}\tan^{-1}\frac{x}{a} + C"},
+            {"question": r"\frac{1}{\sqrt{a^2-x^2}}", "strategy": "x = a \sin \theta と置換", "answer": r"\sin^{-1}\frac{x}{a} + C"},
+            {"question": r"\sqrt{a^2-x^2}", "strategy": "円の面積（扇形）として考える", "answer": r"x=a\sin\theta 置換"},
+            {"question": r"\frac{1}{\cos x}", "strategy": "分母分子にcosをかけて置換積分", "answer": r"\frac{1}{2}\log|\frac{1+\sin x}{1-\sin x}|+C"},
+            {"question": r"\sin^3 x", "strategy": "sin x(1-cos^2 x)に変形", "answer": r"-\cos x + \frac{1}{3}\cos^3 x + C"},
+            {"question": r"\frac{1}{x^2-1}", "strategy": "部分分数分解", "answer": r"\frac{1}{2}\log|\frac{x-1}{x+1}|+C"},
+            {"question": r"(ax+b)^n", "strategy": "そのまま積分して 1/a をかける", "answer": r"\frac{1}{a(n+1)}(ax+b)^{n+1} + C"},
+            {"question": r"\frac{1}{\sqrt{x^2+A}}", "strategy": "公式：log|x+\sqrt{x^2+A}|", "answer": r"\log|x+\sqrt{x^2+A}| + C"},
+            {"question": r"\frac{x}{\sqrt{1+x^2}}", "strategy": "根号の中身の微分が分子にある形", "answer": r"\sqrt{1+x^2} + C"},
+            {"question": r"\tan^2 x", "strategy": "1/cos^2 x - 1 に変形", "answer": r"\tan x - x + C"}
+        ])
 st.sidebar.title("🧬 学習メニュー")
 sub = st.sidebar.selectbox("科目を選択", ["選択してください", "システム英単語", "数Ⅲ積分 定石"])
 
