@@ -22,15 +22,6 @@ st.markdown("""
     color: #111111 !important;
 }
 
-/* 数学の枠内表示設定 */
-.math-box {
-    display: block;
-    margin: 10px 0;
-    padding: 10px;
-    background: #ffffff;
-    text-align: center;
-}
-
 /* オレンジハイライト */
 .highlight {
     color: #ff9800 !important;
@@ -86,10 +77,16 @@ if sub == "選択してください":
     st.info("← サイドバーから科目を選択してください。")
     st.stop()
 
-# --- サイドバーのレベル選択 (ここを修正しました) ---
+# --- サイドバーのレベル選択 ---
 selected_level = "すべて"
 if sub == "システム英単語":
-    lv_map = {"すべて":"All", "1-600":"Fundamental", "601-1200":"Essential", "1201-1700":"Advanced", "1701-2027":"Final"}
+    lv_map = {
+        "すべて": "All",
+        "Fundamental (1-600)": "Fundamental",
+        "Essential (601-1200)": "Essential",
+        "Advanced (1201-1700)": "Advanced",
+        "Final (1701-2027)": "Final"
+    }
     selected_level = st.sidebar.radio("レベルを選択", list(lv_map.keys()))
 
 # --- 初期化 & データ抽出 ---
@@ -102,7 +99,8 @@ if "current_sub" not in st.session_state or st.session_state.current_sub != sub 
     
     df_raw = load_data(sub)
     if sub == "システム英単語" and not df_raw.empty and selected_level != "すべて":
-        df_raw = df_raw[df_raw["level"].astype(str).str.contains(lv_map[selected_level], case=False, na=False)]
+        keyword = lv_map[selected_level]
+        df_raw = df_raw[df_raw["level"].astype(str).str.contains(keyword, case=False, na=False)]
     
     st.session_state.df = df_raw.sample(frac=1).reset_index(drop=True)
     st.session_state.idx = 0
@@ -144,17 +142,16 @@ if sub == "システム英単語":
             st.session_state.answered = False
             st.rerun()
 
-# --- 数学表示 ---
+# --- 数学表示 (枠内に閉じ込める最終手段) ---
 elif sub == "数Ⅲ積分 定石":
     q_latex = r"\int " + str(row["question"]) + r" \, dx"
-    st.markdown(f"""
-        <div class="card blue-card">
-            <p style="margin-bottom: 5px;">次の不定積分を求めよ：</p>
-            <div class="math-box">
-                $${q_latex}$$
-            </div>
-        </div>
-    """, unsafe_allow_html=True)
+    
+    # 【重要】 st.containerを使って枠を作り、その中で st.latex を呼ぶ
+    with st.container():
+        st.markdown('<div class="card blue-card">', unsafe_allow_html=True)
+        st.write("次の不定積分を求めよ：")
+        st.latex(q_latex)
+        st.markdown('</div>', unsafe_allow_html=True)
     
     if not st.session_state.answered:
         if st.button("解答を確認する"):
