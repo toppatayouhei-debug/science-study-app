@@ -165,10 +165,10 @@ elif sub == "入試数学の定石（数Ⅲ）":
     else:
         st.markdown("---")
         
-        # 定石セクション（背景付きで強調、数式対応）
+        # 定石セクション（raw stringとして渡すことでバックスラッシュを保護）
         st.write("**💡 定石・方針**")
         with st.container(border=True):
-            st.write(row['strategy'])
+            st.write(f"{row['strategy']}")
         
         st.write("**【解答】**")
         ans_raw = str(row["answer"])
@@ -176,13 +176,13 @@ elif sub == "入試数学の定石（数Ⅲ）":
             prefix = "y' = " if is_diff else ""
             st.latex(prefix + ans_raw.replace("$", "").strip())
         else:
-            st.write(ans_raw)
+            st.write(f"{ans_raw}")
         
-        # ポイント解説（数式対応）
+        # ポイント解説
         if "explanation" in row and pd.notna(row["explanation"]):
             st.write("**📝 ポイント解説**")
             with st.container(border=True):
-                st.write(row["explanation"])
+                st.write(f"{row['explanation']}")
         
         if st.button("次の問題へ"):
             st.session_state.idx += 1
