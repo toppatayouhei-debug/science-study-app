@@ -4,19 +4,14 @@ import random
 import re
 
 # ==================================================
-# 1. 基本設定
+# 1. Page Config & CSS
 # ==================================================
 st.set_page_config(
-    page_title="理系特化型・定石マスター",
+    page_title="Science Study App",
     page_icon="🧬",
     layout="centered"
 )
 
-# 理系らしいブルー基調のCSS
-st.markdown("""
-# CSS部分をこれに上書き保存
-st.markdown("""
-<style>
 st.markdown("""
 <style>
 .stApp { background:#f8fafc; }
@@ -30,7 +25,6 @@ st.markdown("""
 }
 .orange-card { border-left: 8px solid #ff9800; }
 .blue-card   { border-left: 8px solid #2196f3; }
-
 .stButton button { 
     width: 100%; 
     border-radius: 12px; 
@@ -44,23 +38,20 @@ st.markdown("""
 }
 </style>
 """, unsafe_allow_html=True)
-""", unsafe_allow_html=True)
-""", unsafe_allow_html=True)
 
-# 状態リセット関数
 def reset_engine():
-    keys = ["df", "idx", "answered", "choices", "correct", "selected"]
-    for k in keys:
-        if k in st.session_state: del st.session_state[k]
+    for k in ["df", "idx", "answered", "choices", "correct", "selected"]:
+        if k in st.session_state:
+            del st.session_state[k]
 
 # ==================================================
-# 2. データ読み込み
+# 2. Data Loading
 # ==================================================
 @st.cache_data
 def load_csv(name):
     files = {
         "システム英単語": "final_tango_list.csv",
-        "数Ⅲ積分 定石": "math3_integration.csv" # 後で作成
+        "数Ⅲ積分 定石": "math3_integration.csv"
     }
     try:
         df = pd.read_csv(files[name], encoding="utf-8-sig")
@@ -69,34 +60,32 @@ def load_csv(name):
         return pd.DataFrame()
 
 # ==================================================
-# 3. メイン画面
+# 3. Sidebar & Logic
 # ==================================================
-st.sidebar.title("🧬 理系学習メニュー")
-subject = st.sidebar.selectbox("科目を選択", ["選択してください", "システム英単語", "数Ⅲ積分 定石"])
+st.sidebar.title("🧬 Science Menu")
+subject = st.sidebar.selectbox("Subject", ["Select", "システム英単語", "数Ⅲ積分 定石"])
 
-if subject == "選択してください":
-    st.info("左のサイドバーから学習を開始してください。")
+if subject == "Select":
+    st.info("← Please select a subject from sidebar.")
     st.stop()
 
-# データ読み込みと初期化
 raw_df = load_csv(subject)
-if raw_df.empty and subject == "数Ⅲ積分 定石":
-    st.warning("数学のCSVがまだありません。作成して配置してください。")
+if raw_df.empty:
+    st.warning(f"File for {subject} not found. Please check CSV.")
     st.stop()
 
-# フィルタリング（シス単のみ）
 df = raw_df
+sel_level = "All"
 if subject == "システム英単語":
-    level_map = {"All":"All", "1-600":"Fundamental", "601-1200":"Essential", "1201-1700":"Advanced", "1701-2027":"Final"}
-    sel_level = st.sidebar.radio("学習レベル", list(level_map.keys()))
+    levels = {"All":"All", "1-600":"Fundamental", "601-1200":"Essential", "1201-1700":"Advanced", "1701-2027":"Final"}
+    sel_level = st.sidebar.radio("Level", list(levels.keys()))
     if sel_level != "All":
-        df = raw_df[raw_df["level"].astype(str).str.contains(level_map[sel_level], case=False, na=False)]
+        df = raw_df[raw_df["level"].astype(str).str.contains(levels[sel_level], case=False, na=False)]
 
-# クイズエンジンの初期化
-if st.session_state.get("current_subject") != subject or st.session_state.get("current_filter") != str(sel_level if subject == "システム英単語" else ""):
+if st.session_state.get("current_subject") != subject or st.session_state.get("current_filter") != str(sel_level):
     reset_engine()
     st.session_state.current_subject = subject
-    st.session_state.current_filter = str(sel_level if subject == "システム英単語" else "")
+    st.session_state.current_filter = str(sel_level)
     st.session_state.df = df.sample(frac=1).reset_index(drop=True)
     st.session_state.idx = 0
 
@@ -105,8 +94,8 @@ idx = st.session_state.get("idx", 0)
 
 if idx >= len(active_df):
     st.balloons()
-    st.success("🎉 全問終了！")
-    if st.button("最初からやり直す"):
+    st.success("🎉 Completed!")
+    if st.button("Restart"):
         reset_engine()
         st.rerun()
     st.stop()
@@ -115,7 +104,7 @@ row = active_df.iloc[idx]
 st.progress((idx + 1) / len(active_df))
 
 # ==================================================
-# 4. クイズUI（英単語移植）
+# 4. Main UI
 # ==================================================
 if subject == "システム英単語":
     word = str(row["question"])
@@ -139,17 +128,29 @@ if subject == "システム英単語":
                 st.rerun()
     
     if st.session_state.get("answered"):
-        if st.session_state.selected == st.session_state.correct: st.success("✨ 正解！")
-        else: st.error(f"❌ 不正解... 正解：{st.session_state.correct}")
-        st.info(f"意味：{row['all_answers']}\n訳：{row['translation']}")
-        if st.button("次の問題へ"):
+        if st.session_state.selected == st.session_state.correct: st.success("✨ Correct!")
+        else: st.error(f"❌ Incorrect... Correct: {st.session_state.correct}")
+        st.info(f"Meaning: {row['all_answers']}\nTranslation: {row['translation']}")
+        if st.button("Next"):
             del st.session_state.choices
             st.session_state.idx += 1
             st.session_state.answered = False
             st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
-# --- 5. 数学用のプレースホルダー ---
 elif subject == "数Ⅲ積分 定石":
-    st.info("ここに数学の定石チェックロジックを実装します。")
-
+    st.markdown('<div class="card blue-card">', unsafe_allow_html=True)
+    st.latex(row["question"])
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    if not st.session_state.get("answered", False):
+        if st.button("Check Answer"):
+            st.session_state.answered = True
+            st.rerun()
+    else:
+        st.info(f"💡 Strategy: {row['strategy']}")
+        st.latex(row["answer"])
+        if st.button("Next"):
+            st.session_state.idx += 1
+            st.session_state.answered = False
+            st.rerun()
