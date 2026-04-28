@@ -4,16 +4,13 @@ import random
 import re
 
 # ==========================================
-# 1. ページ設定 & 強力なデザイン設定 (CSS)
+# 1. ページ設定 & デザイン (CSS)
 # ==========================================
 st.set_page_config(page_title="理系学習アプリ", page_icon="🧬")
 
 st.markdown("""
 <style>
-/* 全体の背景色 */
 .stApp { background-color: #f0f2f5 !important; }
-
-/* カードのデザイン */
 .card { 
     background-color: white !important; 
     padding: 20px !important; 
@@ -21,9 +18,7 @@ st.markdown("""
     box-shadow: 0 4px 12px rgba(0,0,0,0.1) !important; 
     margin-bottom: 15px !important; 
 }
-
-/* ★Macのダークモードでも絶対に見える設定★ */
-/* 数式の周りに白い座布団を敷き、文字と図を黒に固定します */
+/* 数式の視認性確保（座布団スタイル） */
 .stLatex {
     background-color: white !important;
     padding: 12px !important;
@@ -34,26 +29,15 @@ st.markdown("""
     color: #000000 !important;
     fill: #000000 !important;
 }
-
-/* カード内のテキスト色を黒に固定 */
 .card *, p, span, div, label { color: #111111 !important; }
-
-/* 装飾用：左側の色線 */
 .orange-card { border-left: 8px solid #ff9800 !important; }
 .blue-card { border-left: 8px solid #2196f3 !important; }
-
-/* ボタンのデザイン */
-.stButton button { 
-    width: 100%; 
-    border-radius: 10px; 
-    font-weight: bold; 
-    min-height: 45px; 
-}
+.stButton button { width: 100%; border-radius: 10px; font-weight: bold; min-height: 45px; }
 </style>
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. データの読み込み関数 (数学20問増量版)
+# 2. データの定義
 # ==========================================
 def load_data(subject):
     if subject == "システム英単語":
@@ -87,78 +71,69 @@ def load_data(subject):
         ])
 
 # ==========================================
-# 3. メイン処理 (サイドバー & 学習ロジック)
+# 3. メインロジック
 # ==========================================
 st.sidebar.title("🧬 学習メニュー")
 sub = st.sidebar.selectbox("科目を選択", ["選択してください", "システム英単語", "数Ⅲ積分 定石"])
 
 if sub == "選択してください":
-    st.info("← 左のサイドバーから科目を選択して開始してください。")
+    st.info("← サイドバーから科目を選択してください。")
     st.stop()
 
-# セッション状態の初期化
+# 初期化
 if "current_sub" not in st.session_state or st.session_state.current_sub != sub:
     for key in list(st.session_state.keys()):
         if key != "current_sub": del st.session_state[key]
     st.session_state.current_sub = sub
-    
     df_raw = load_data(sub)
-    
-    # 英単語のレベル分けサイドバー
     if sub == "システム英単語" and not df_raw.empty:
         lv_map = {"すべて":"All", "1-600":"Fundamental", "601-1200":"Essential", "1201-1700":"Advanced", "1701-2027":"Final"}
-        sel = st.sidebar.radio("レベルを選択", list(lv_map.keys()))
+        sel = st.sidebar.radio("レベル選択", list(lv_map.keys()))
         if sel != "すべて":
             df_raw = df_raw[df_raw["level"].astype(str).str.contains(lv_map[sel], case=False, na=False)]
-    
     st.session_state.df = df_raw.sample(frac=1).reset_index(drop=True)
     st.session_state.idx = 0
     st.session_state.answered = False
 
 df = st.session_state.get("df", pd.DataFrame())
 if df.empty:
-    st.warning("データが見つかりません。")
+    st.warning("データがありません。")
     st.stop()
 
-idx = st.session_state.idx
-row = df.iloc[idx % len(df)]
+row = df.iloc[st.session_state.idx % len(df)]
 
-# --- 英単語の表示 ---
+# --- 英単語表示 ---
 if sub == "システム英単語":
     word = str(row["question"])
     sentence = re.sub(re.escape(word), f"<span style='color:#ff9800;font-weight:bold'>{word}</span>", str(row["sentence"]), flags=re.IGNORECASE)
     st.markdown(f'<div class="card orange-card">{sentence}</div>', unsafe_allow_html=True)
-    
     if "choices" not in st.session_state:
         ans_list = [x.strip() for x in re.split(r'[,、;]', str(row["all_answers"])) if x.strip()]
         correct = ans_list[0]
         dummies = [x.strip() for x in re.split(r'[,、;]', str(row["dummy_pool"])) if x.strip() and x.strip() != correct]
         st.session_state.choices = random.sample([correct] + random.sample(dummies, min(3, len(dummies))), 4)
         st.session_state.correct = correct
-
     c1, c2 = st.columns(2)
     for i, val in enumerate(st.session_state.choices):
         with (c1 if i % 2 == 0 else c2):
-            if st.button(val, key=f"t_{idx}_{i}", disabled=st.session_state.answered):
+            if st.button(val, key=f"t_{st.session_state.idx}_{i}", disabled=st.session_state.answered):
                 st.session_state.selected, st.session_state.answered = val, True
                 st.rerun()
-    
     if st.session_state.answered:
-        if st.session_state.selected == st.session_state.correct: 
-            st.success(random.choice(["正解！その調子！", "ナイス！正解です", "完璧！", "冴えてるね！"]))
-        else: 
-            st.error(f"正解：{st.session_state.correct}")
-        st.write(f"**意味：** {row['all_answers']}")
+        if st.session_state.selected == st.session_state.correct: st.success("正解！")
+        else: st.error(f"正解：{st.session_state.correct}")
+        st.write(f"意味：{row['all_answers']}")
         if st.button("次の問題へ"):
             del st.session_state.choices
             st.session_state.idx += 1
             st.session_state.answered = False
             st.rerun()
 
-# --- 数学の表示 ---
+# --- 数学表示 ---
 elif sub == "数Ⅲ積分 定石":
     st.markdown('<div class="card blue-card">', unsafe_allow_html=True)
-    # 積分記号を付与して表示
+    st.write("次の不定積分を求めよ：")
+    # 積分記号と問題を合体
     st.latex(r"\int " + str(row["question"]) + r" \, dx")
     st.markdown('</div>', unsafe_allow_html=True)
     
@@ -167,7 +142,7 @@ elif sub == "数Ⅲ積分 定石":
             st.session_state.answered = True
             st.rerun()
     else:
-        st.markdown(f"**💡 解法の定石：{row['strategy']}**")
+        st.markdown(f"**💡 定石：{row['strategy']}**")
         st.latex(str(row["answer"]))
         if st.button("次の問題へ"):
             st.session_state.idx += 1
