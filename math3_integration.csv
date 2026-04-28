@@ -1,0 +1,4 @@
+question,strategy,answer
+\int x \cos x dx,部分積分法,x \sin x + \cos x + C
+\int \frac{f'(x)}{f(x)} dx,対数積分法,\log |f(x)| + C
+\int \sin^2 x dx,半角の公式で次数下げ,\frac{1}{2}x - \frac{1}{4}\sin 2x + C
