@@ -41,33 +41,12 @@ st.markdown("""
     box-shadow: 0 4px 10px rgba(0,0,0,0.08) !important; 
     margin-bottom: 10px !important;
 }
-.explanation-box {
-    background-color: #f8fafc; 
-    padding: 15px; 
-    border-radius: 8px; 
-    border: 1px solid #e2e8f0; 
-    line-height: 1.8; 
-    color: #334155; 
-    font-size: 1rem;
-    margin-bottom: 20px;
-}
 .highlight { color: #ff9800 !important; font-weight: bold !important; }
 .orange-card { border-left: 8px solid #ff9800 !important; }
 .blue-card { border-left: 8px solid #2196f3 !important; }
 .stButton button { width: 100%; border-radius: 10px; font-weight: bold; min-height: 45px; }
 </style>
 """, unsafe_allow_html=True)
-
-# ==========================================
-# 2. 補助関数 (数式レンダリング修正)
-# ==========================================
-def format_display_text(text):
-    """解説文の中のLaTeX記法をMarkdown形式に整える"""
-    if pd.isna(text): return ""
-    text = str(text).strip()
-    # 既に $ で囲まれている場合はそのまま、囲まれていないバックスラッシュを含む単語を $ で囲む
-    # ただし、今回はシンプルに Markdown としてそのまま st.markdown に渡します
-    return text
 
 def load_data(subject):
     file_map = {
@@ -190,7 +169,6 @@ elif sub == "入試数学の定石（数Ⅲ）":
         
         st.write("**【解答】**")
         ans_raw = str(row["answer"])
-        # 数式単体（LaTeX）の表示
         if not re.search(r'[ぁ-んァ-ヶ亜-熙]', ans_raw):
             prefix = "y' = " if is_diff else ""
             st.latex(prefix + ans_raw.replace("$", "").strip())
@@ -199,12 +177,9 @@ elif sub == "入試数学の定石（数Ⅲ）":
         
         if "explanation" in row and pd.notna(row["explanation"]):
             st.write("**📝 ポイント解説**")
-            # st.markdown は $ で囲まれた部分を自動で数式としてレンダリングします
-            st.markdown(f"""
-            <div class="explanation-box">
-                {row["explanation"]}
-            </div>
-            """, unsafe_allow_html=True)
+            # HTMLを使わず、Streamlitのコンテナで枠を作ることで数式表示を保護
+            with st.container(border=True):
+                st.write(row["explanation"])
         
         if st.button("次の問題へ"):
             st.session_state.idx += 1
