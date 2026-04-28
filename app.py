@@ -170,7 +170,7 @@ if sub == "システム英単語":
 else:
     st.markdown(f'<div class="card blue-card">【{row["category"]}】例題</div>', unsafe_allow_html=True)
     
-    # 1. 問題文の表示（数式を綺麗に）
+    # 1. 問題文の表示
     q_text = str(row["question"]).replace('$', '').replace('\\\\', '\\')
     st.latex(rf"\displaystyle {q_text}")
     
@@ -181,22 +181,25 @@ else:
     else:
         st.markdown("---")
         st.write("**💡 定石・方針**")
-        st.info(str(row['strategy']))
+        
+        # --- 修正ポイント：定石・方針も数式としてレンダリング ---
+        strat_text = str(row['strategy']).replace('$', '').replace('\\\\', '\\')
+        # \alpha 等のバックスラッシュが含まれる場合は st.latex を使用
+        if '\\' in strat_text:
+            st.latex(rf"\displaystyle {strat_text}")
+        else:
+            st.info(strat_text)
         
         st.write("**【解答・略解】**")
-        # $を削除し、保護されたエスケープを戻す
         ans_raw = str(row["answer"]).replace('$', '').replace('\\\\', '\\')
         
-        # 2. 解答の表示（数式判定）
         if any(c in ans_raw for c in ['\\', '^', '_', '{', '}', 'int', 'lim', 'frac']):
-            # raw f-stringでバックスラッシュを保護しつつ st.latex で描画
             st.latex(rf"\displaystyle {ans_raw}")
         else:
             st.write(ans_raw)
         
         if "explanation" in row and pd.notna(row["explanation"]):
             st.write("**📝 ポイント解説**")
-            # 解説文も数式があれば対応
             exp_text = str(row["explanation"]).replace('$', '').replace('\\\\', '\\')
             if '\\' in exp_text:
                 st.latex(rf"\displaystyle {exp_text}")
