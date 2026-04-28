@@ -45,7 +45,6 @@ st.markdown("""
 .orange-card { border-left: 8px solid #ff9800 !important; }
 .blue-card { border-left: 8px solid #2196f3 !important; }
 .stButton button { width: 100%; border-radius: 10px; font-weight: bold; min-height: 45px; }
-/* 数式と日本語が混ざった時のフォント調整 */
 .stMarkdown p { font-size: 1.1rem !important; line-height: 1.6; }
 </style>
 """, unsafe_allow_html=True)
@@ -53,7 +52,8 @@ st.markdown("""
 def load_data(subject):
     file_map = {
         "システム英単語": "final_tango_list.csv",
-        "入試数学の定石（数Ⅲ）": "math3_integration.csv"
+        "入試数学の定石（数Ⅲ）": "math3.csv",
+        "入試数学の定石（ⅠAⅡB C）": "math_std.csv"
     }
     try:
         df = pd.read_csv(file_map[subject], encoding="utf-8-sig").dropna(how='all')
@@ -71,7 +71,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.sidebar.title("🧬 学習メニュー")
-sub = st.sidebar.selectbox("科目を選択", ["選択してください", "システム英単語", "入試数学の定石（数Ⅲ）"])
+sub = st.sidebar.selectbox("科目を選択", ["選択してください", "システム英単語", "入試数学の定石（数Ⅲ）", "入試数学の定石（ⅠAⅡB C）"])
 
 if sub == "選択してください":
     st.markdown(f"""
@@ -89,27 +89,24 @@ if sub == "選択してください":
 
 df_raw = load_data(sub)
 if df_raw.empty:
-    st.warning("CSVファイルが見つかりません。")
+    st.warning(f"「{sub}」用のCSVファイルが見つかりません。")
     st.stop()
 
-# フィルタリング
+# フィルタリング設定
 if sub == "システム英単語":
     lv_map = {"すべて":"All", "Fundamental (1-600)":"Fundamental", "Essential (601-1200)":"Essential", "Advanced (1201-1700)":"Advanced", "Final (1701-2027)":"Final"}
     selected_filter = st.sidebar.radio("レベル", list(lv_map.keys()))
     filter_keyword, filter_col = lv_map[selected_filter], "level"
 else:
-    # 分野の並び順を調整（微分法を先頭にする）
     all_cats = df_raw["category"].unique().tolist()
-    # 「微分法」が含まれるものを抽出
-    diff_cats = [c for c in all_cats if "微分" in str(c)]
-    other_cats = [c for c in all_cats if "微分" not in str(c)]
-    
-    # 並び順：すべて -> 微分法系 -> その他
-    cats = ["すべて"] + sorted(diff_cats) + sorted(other_cats)
-    
+    priority_kw = "微分" if "数Ⅲ" in sub else "【"
+    priority_cats = [c for c in all_cats if priority_kw in str(c)]
+    other_cats = [c for c in all_cats if priority_kw not in str(c)]
+    cats = ["すべて"] + sorted(priority_cats) + sorted(other_cats)
     selected_filter = st.sidebar.radio("分野", cats)
     filter_keyword, filter_col = selected_filter, "category"
 
+# セッション管理
 if "current_sub" not in st.session_state or st.session_state.current_sub != sub or st.session_state.get("last_filter") != selected_filter:
     st.session_state.current_sub, st.session_state.last_filter = sub, selected_filter
     df_f = df_raw.copy()
@@ -124,7 +121,7 @@ if st.session_state.df.empty:
 
 row = st.session_state.df.iloc[st.session_state.idx % len(st.session_state.df)]
 
-# 表示ロジック
+# --- 表示ロジック：英単語 ---
 if sub == "システム英単語":
     word = str(row["question"])
     sentence = re.sub(re.escape(word), f"<span class='highlight'>{word}</span>", str(row["sentence"]), flags=re.IGNORECASE)
@@ -132,10 +129,9 @@ if sub == "システム英単語":
     
     if "choices" not in st.session_state:
         ans_list = [x.strip() for x in re.split(r'[,、;]', str(row["all_answers"])) if x.strip()]
-        correct = ans_list[0]
-        dummies = [x.strip() for x in re.split(r'[,、;]', str(row["dummy_pool"])) if x.strip() and x.strip() != correct]
-        st.session_state.choices = random.sample([correct] + random.sample(dummies, min(3, len(dummies))), 4)
-        st.session_state.correct = correct
+        st.session_state.correct = ans_list[0]
+        dummies = [x.strip() for x in re.split(r'[,、;]', str(row["dummy_pool"])) if x.strip() and x.strip() != st.session_state.correct]
+        st.session_state.choices = random.sample([st.session_state.correct] + random.sample(dummies, min(3, len(dummies))), 4)
     
     c1, c2 = st.columns(2)
     for i, val in enumerate(st.session_state.choices):
@@ -154,31 +150,32 @@ if sub == "システム英単語":
             st.session_state.answered = False
             st.rerun()
 
-elif sub == "入試数学の定石（数Ⅲ）":
-    is_diff = "微分" in str(row["category"])
-    task = "次の関数を微分せよ：" if is_diff else "次の不定積分を求めよ："
-    st.markdown(f'<div class="card blue-card">【{row["category"]}】{task}</div>', unsafe_allow_html=True)
+# --- 表示ロジック：数学（例題形式） ---
+else:
+    st.markdown(f'<div class="card blue-card">【{row["category"]}】例題</div>', unsafe_allow_html=True)
     
-    if is_diff: st.latex(r"y = " + str(row["question"]))
-    else: st.latex(r"\int " + str(row["question"]) + r" \, dx")
+    # 問題文（例題）の表示
+    q_text = str(row["question"])
+    if "$" in q_text:
+        st.markdown(q_text)
+    else:
+        st.write(q_text)
     
     if not st.session_state.answered:
-        if st.button("解答を確認する"):
+        if st.button("定石と解答を確認する"):
             st.session_state.answered = True
             st.rerun()
     else:
         st.markdown("---")
-        
         # 💡 定石・方針
         st.write("**💡 定石・方針**")
-        st.markdown(str(row['strategy']))
+        st.info(str(row['strategy']))
         
         # 【解答】
-        st.write("**【解答】**")
+        st.write("**【解答・略解】**")
         ans_raw = str(row["answer"])
         if not re.search(r'[ぁ-んァ-ヶ亜-熙]', ans_raw):
-            prefix = "y' = " if is_diff else ""
-            st.latex(prefix + ans_raw.replace("$", "").strip())
+            st.latex(ans_raw.replace("$", "").strip())
         else:
             st.markdown(ans_raw)
         
