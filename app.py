@@ -98,7 +98,15 @@ if sub == "システム英単語":
     selected_filter = st.sidebar.radio("レベル", list(lv_map.keys()))
     filter_keyword, filter_col = lv_map[selected_filter], "level"
 else:
-    cats = ["すべて"] + sorted(df_raw["category"].unique().tolist())
+    # 分野の並び順を調整（微分法を先頭にする）
+    all_cats = df_raw["category"].unique().tolist()
+    # 「微分法」が含まれるものを抽出
+    diff_cats = [c for c in all_cats if "微分" in str(c)]
+    other_cats = [c for c in all_cats if "微分" not in str(c)]
+    
+    # 並び順：すべて -> 微分法系 -> その他
+    cats = ["すべて"] + sorted(diff_cats) + sorted(other_cats)
+    
     selected_filter = st.sidebar.radio("分野", cats)
     filter_keyword, filter_col = selected_filter, "category"
 
