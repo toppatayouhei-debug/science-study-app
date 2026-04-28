@@ -60,16 +60,14 @@ def load_data(subject):
         "入試数学の定石（ⅠAⅡB C）": "math_std.csv"
     }
     try:
-        # csv読み込み時にバックスラッシュをそのまま保持
         df = pd.read_csv(file_map[subject], encoding="utf-8-sig").dropna(how='all')
         df.columns = df.columns.str.strip()
-        
-        # 数学の場合、念のためバックスラッシュをエスケープ保護
+        # 数学の場合、バックスラッシュが消えないようにエスケープ処理を事前に行う
         if "数学" in subject:
             df = df.replace(r'\\', r'\\\\', regex=True)
         return df
     except Exception as e:
-        st.error(f"データの読み込みに失敗しました: {e}")
+        st.error(f"エラーが発生しました: {e}")
         return pd.DataFrame()
 
 # ヘッダー表示
@@ -99,11 +97,11 @@ if sub == "選択してください":
 
 df_raw = load_data(sub)
 if df_raw.empty:
-    st.warning(f"「{sub}」用のデータが見つかりません。")
+    st.warning(f"「{sub}」用のCSVファイルが見つかりません。")
     st.stop()
 
 # ==========================================
-# 3. フィルタリングとセッション管理
+# 3. フィルタリング設定
 # ==========================================
 if sub == "システム英単語":
     lv_map = {"すべて":"All", "Fundamental (1-600)":"Fundamental", "Essential (601-1200)":"Essential", "Advanced (1201-1700)":"Advanced", "Final (1701-2027)":"Final"}
@@ -117,6 +115,7 @@ else:
     selected_filter = st.sidebar.radio("分野", cats)
     filter_keyword, filter_col = selected_filter, "category"
 
+# セッション管理
 if "current_sub" not in st.session_state or st.session_state.current_sub != sub or st.session_state.get("last_filter") != selected_filter:
     st.session_state.current_sub = sub
     st.session_state.last_filter = selected_filter
@@ -137,7 +136,7 @@ row = st.session_state.df.iloc[st.session_state.idx % len(st.session_state.df)]
 # 4. 表示ロジック
 # ==========================================
 
-# --- 【A】システム英単語 ---
+# --- 英単語 ---
 if sub == "システム英単語":
     word = str(row["question"])
     sentence = re.sub(re.escape(word), f"<span class='highlight'>{word}</span>", str(row["sentence"]), flags=re.IGNORECASE)
@@ -166,13 +165,13 @@ if sub == "システム英単語":
             st.session_state.answered = False
             st.rerun()
 
-# --- 【B】数学 ---
+# --- 数学 ---
 else:
     st.markdown(f'<div class="card blue-card">【{row["category"]}】例題</div>', unsafe_allow_html=True)
     
-    # 1. 問題文の表示（数式を綺麗に）
-    q_text = str(row["question"]).replace('$', '').replace('\\\\', '\\')
-    st.latex(rf"\displaystyle {q_text}")
+    # 問題文のレンダリング
+    q_text = str(row["question"])
+    st.markdown(q_text)
     
     if not st.session_state.answered:
         if st.button("定石と解答を確認する"):
@@ -184,24 +183,23 @@ else:
         st.info(str(row['strategy']))
         
         st.write("**【解答・略解】**")
-        # $を削除し、保護されたエスケープを戻す
-        ans_raw = str(row["answer"]).replace('$', '').replace('\\\\', '\\')
+        ans_raw = str(row["answer"])
         
-        # 2. 解答の表示（数式判定）
-        if any(c in ans_raw for c in ['\\', '^', '_', '{', '}', 'int', 'lim', 'frac']):
-            # raw f-stringでバックスラッシュを保護しつつ st.latex で描画
-            st.latex(rf"\displaystyle {ans_raw}")
+        # 数式表示の修正：$を取り除き、$$で囲むことで分数を大きく表示
+        clean_ans = ans_raw.replace('$', '')
+        
+        # 数式記号が含まれる場合、ディスプレイモード（$$）で表示
+        if any(c in clean_ans for c in ['\\', '^', '_', '{', '}', 'int', 'lim', 'frac', 'log', 'sin', 'cos', 'tan']):
+            # 改行を入れることで確実にディスプレイ形式を適用
+            st.markdown(f"$$\n{clean_ans}\n$$")
         else:
             st.write(ans_raw)
         
         if "explanation" in row and pd.notna(row["explanation"]):
             st.write("**📝 ポイント解説**")
-            # 解説文も数式があれば対応
-            exp_text = str(row["explanation"]).replace('$', '').replace('\\\\', '\\')
-            if '\\' in exp_text:
-                st.latex(rf"\displaystyle {exp_text}")
-            else:
-                st.info(exp_text)
+            exp_text = str(row["explanation"])
+            # 解説内でも数式が表示されるようにする
+            st.info(exp_text)
         
         if st.button("次の問題へ"):
             st.session_state.idx += 1
