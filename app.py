@@ -49,6 +49,9 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# ==========================================
+# 2. データ読み込み関数
+# ==========================================
 @st.cache_data
 def load_data(subject):
     file_map = {
@@ -57,11 +60,14 @@ def load_data(subject):
         "入試数学の定石（ⅠAⅡB C）": "math_std.csv"
     }
     try:
-        # csv読み込み時に、勝手に \ を解釈されないよう engine='python' を推奨
         df = pd.read_csv(file_map[subject], encoding="utf-8-sig").dropna(how='all')
         df.columns = df.columns.str.strip()
+        # 数学の場合、バックスラッシュが消えないようにエスケープ処理を事前に行う
+        if "数学" in subject:
+            df = df.replace(r'\\', r'\\\\', regex=True)
         return df
-    except:
+    except Exception as e:
+        st.error(f"エラーが発生しました: {e}")
         return pd.DataFrame()
 
 # ヘッダー表示
@@ -94,7 +100,9 @@ if df_raw.empty:
     st.warning(f"「{sub}」用のCSVファイルが見つかりません。")
     st.stop()
 
-# フィルタリング設定
+# ==========================================
+# 3. フィルタリング設定
+# ==========================================
 if sub == "システム英単語":
     lv_map = {"すべて":"All", "Fundamental (1-600)":"Fundamental", "Essential (601-1200)":"Essential", "Advanced (1201-1700)":"Advanced", "Final (1701-2027)":"Final"}
     selected_filter = st.sidebar.radio("レベル", list(lv_map.keys()))
@@ -124,23 +132,29 @@ if st.session_state.df.empty:
 
 row = st.session_state.df.iloc[st.session_state.idx % len(st.session_state.df)]
 
-# --- 表示ロジック：英単語 ---
+# ==========================================
+# 4. 表示ロジック
+# ==========================================
+
+# --- 英単語 ---
 if sub == "システム英単語":
-    # (省略：英単語ロジックは変更なし)
     word = str(row["question"])
     sentence = re.sub(re.escape(word), f"<span class='highlight'>{word}</span>", str(row["sentence"]), flags=re.IGNORECASE)
     st.markdown(f'<div class="card orange-card">{sentence}</div>', unsafe_allow_html=True)
+    
     if "choices" not in st.session_state:
         ans_list = [x.strip() for x in re.split(r'[,、;]', str(row["all_answers"])) if x.strip()]
         st.session_state.correct = ans_list[0]
         dummies = [x.strip() for x in re.split(r'[,、;]', str(row["dummy_pool"])) if x.strip() and x.strip() != st.session_state.correct]
         st.session_state.choices = random.sample([st.session_state.correct] + random.sample(dummies, min(3, len(dummies))), 4)
+    
     c1, c2 = st.columns(2)
     for i, val in enumerate(st.session_state.choices):
         with (c1 if i % 2 == 0 else c2):
             if st.button(val, key=f"t_{st.session_state.idx}_{i}", disabled=st.session_state.answered):
                 st.session_state.selected, st.session_state.answered = val, True
                 st.rerun()
+    
     if st.session_state.answered:
         if st.session_state.selected == st.session_state.correct: st.success("正解")
         else: st.error(f"正解：{st.session_state.correct}")
@@ -151,11 +165,11 @@ if sub == "システム英単語":
             st.session_state.answered = False
             st.rerun()
 
-# --- 表示ロジック：数学（例題形式） ---
+# --- 数学 ---
 else:
     st.markdown(f'<div class="card blue-card">【{row["category"]}】例題</div>', unsafe_allow_html=True)
     
-    # 問題文：$記号が含まれていればmarkdownとして表示
+    # 問題文のレンダリング
     q_text = str(row["question"])
     st.markdown(q_text)
     
@@ -171,20 +185,21 @@ else:
         st.write("**【解答・略解】**")
         ans_raw = str(row["answer"])
         
-        # 修正の核：生データとして表示されないよう、$ で囲まれていなければ強制的に囲む
-        # かつ st.latex ではなく st.markdown を使うことで表示を安定させる
-        if "$" in ans_raw:
-            st.markdown(ans_raw)
+        # 数式表示の修正：$を取り除き、$$で囲むことで分数を大きく表示
+        clean_ans = ans_raw.replace('$', '')
+        
+        # 数式記号が含まれる場合、ディスプレイモード（$$）で表示
+        if any(c in clean_ans for c in ['\\', '^', '_', '{', '}', 'int', 'lim', 'frac', 'log', 'sin', 'cos', 'tan']):
+            # 改行を入れることで確実にディスプレイ形式を適用
+            st.markdown(f"$$\n{clean_ans}\n$$")
         else:
-            # 数式記号が含まれる可能性が高い場合、全体を $ で囲む
-            if any(c in ans_raw for c in ['\\', '^', '_', '{', '}']):
-                st.markdown(f"${ans_raw}$")
-            else:
-                st.write(ans_raw)
+            st.write(ans_raw)
         
         if "explanation" in row and pd.notna(row["explanation"]):
             st.write("**📝 ポイント解説**")
-            st.info(str(row["explanation"]))
+            exp_text = str(row["explanation"])
+            # 解説内でも数式が表示されるようにする
+            st.info(exp_text)
         
         if st.button("次の問題へ"):
             st.session_state.idx += 1
