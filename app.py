@@ -1,9 +1,57 @@
 import streamlit as st
 import pandas as pd
+import random
+import re
 
-# 1. ページ設定（元のタイトル）
-st.set_page_config(page_title="入試数学の定石マスター", layout="wide")
+# ==========================================
+# 1. デザイン設定
+# ==========================================
+st.set_page_config(page_title="理系には、勝ち方がある", page_icon="🧬", layout="centered")
 
+st.markdown("""
+<style>
+.stApp { background-color: #f0f2f5 !important; }
+.header-container {
+    text-align: center;
+    margin-top: 10px;
+    margin-bottom: 25px;
+}
+.science-icon {
+    font-size: 3rem;
+    margin-bottom: 5px;
+}
+.main-title {
+    color: #1e3a8a;
+    font-size: 2.2rem;
+    font-weight: 800;
+    margin: 0;
+}
+.concept-section {
+    background-color: #ffffff;
+    padding: 20px;
+    border-radius: 10px;
+    border-left: 5px solid #1e3a8a;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    margin-bottom: 20px;
+}
+.card { 
+    background-color: white !important; 
+    padding: 15px 20px !important; 
+    border-radius: 12px !important; 
+    box-shadow: 0 4px 10px rgba(0,0,0,0.08) !important; 
+    margin-bottom: 15px !important;
+}
+.highlight { color: #ff9800 !important; font-weight: bold !important; }
+.orange-card { border-left: 8px solid #ff9800 !important; }
+.blue-card { border-left: 8px solid #2196f3 !important; }
+.stButton button { width: 100%; border-radius: 10px; font-weight: bold; min-height: 45px; }
+.stMarkdown p { font-size: 1.1rem !important; line-height: 1.6; }
+</style>
+""", unsafe_allow_html=True)
+
+# ==========================================
+# 2. データ読み込み関数
+# ==========================================
 @st.cache_data
 def load_data(subject):
     file_map = {
@@ -12,72 +60,150 @@ def load_data(subject):
         "入試数学の定石（ⅠAⅡB C）": "math_std.csv"
     }
     try:
-        # CSV読み込み：区切り文字のミスを自動判別し、カンマ混じりのデータを保護
-        df = pd.read_csv(file_map[subject], encoding="utf-8-sig", sep=None, engine='python', quotechar='"')
-        # 列名の余計な空白を削除
+        # csv読み込み時にバックスラッシュをそのまま保持
+        df = pd.read_csv(file_map[subject], encoding="utf-8-sig").dropna(how='all')
         df.columns = df.columns.str.strip()
+        
+        # 数学の場合、念のためバックスラッシュをエスケープ保護
+        if "数学" in subject:
+            df = df.replace(r'\\', r'\\\\', regex=True)
         return df
     except Exception as e:
-        st.error(f"読み込み失敗: {e}")
+        st.error(f"データの読み込みに失敗しました: {e}")
         return pd.DataFrame()
 
-# 2. メインタイトル
-st.title("🎓 入試数学の定石・解法の型")
+# ヘッダー表示
+st.markdown("""
+<div class="header-container">
+    <div class="science-icon">🧬🧪⚛️</div>
+    <div class="main-title">理系には、勝ち方がある</div>
+</div>
+""", unsafe_allow_html=True)
 
-# 3. サイドバー
-st.sidebar.header("メニュー設定")
-subject = st.sidebar.selectbox("教材を選択", ["入試数学の定石（ⅠAⅡB C）", "入試数学の定石（数Ⅲ）", "システム英単語"])
+st.sidebar.title("🧬 学習メニュー")
+sub = st.sidebar.selectbox("科目を選択", ["選択してください", "システム英単語", "入試数学の定石（数Ⅲ）", "入試数学の定石（ⅠAⅡB C）"])
 
-df = load_data(subject)
+if sub == "選択してください":
+    st.markdown("""
+    <div class="concept-section">
+        <strong>■ Goal</strong><br>
+        ・<b>英単語</b>：リーディングで「見て意味がわかる」単語を増やす。<br>
+        ・<b>数学</b>：入試数学の定石を定着させ、基礎力をつける。<br><br>
+        <strong>■ Strategy</strong><br>
+        ① 入試問題を解くための「基本」を即答できるレベルにする。<br>
+        ② 形を見た瞬間に解き方が思い浮かぶようにする。<br>
+        ③ 解き方の「型」の習得が目標です。
+    </div>
+    """, unsafe_allow_html=True)
+    st.stop()
 
-if not df.empty:
-    # カテゴリー列の判定（levelかcategory、存在する方を使う）
-    cat_col = "level" if "level" in df.columns else "category"
-    
-    categories = ["すべて"] + list(df[cat_col].unique())
-    selected_cat = st.sidebar.selectbox("カテゴリー選択", categories)
+df_raw = load_data(sub)
+if df_raw.empty:
+    st.warning(f"「{sub}」用のデータが見つかりません。")
+    st.stop()
 
-    filtered_df = df if selected_cat == "すべて" else df[df[cat_col] == selected_cat]
-
-    st.sidebar.divider()
-    idx = st.sidebar.number_input("番号 (1～)", min_value=1, max_value=len(filtered_df), step=1) - 1
-    row = filtered_df.iloc[idx]
-
-    # --- メイン表示エリア ---
-    st.subheader(f"📌 {row[cat_col]}")
-
-    # 問題文 / 単語の表示
-    st.info(f"### 【問題 / 単語】\n{row['question']}")
-    
-    # 英語データのみにある「出題情報」を表示
-    if "exam_info" in df.columns:
-        st.write(f"出題情報: {row['exam_info']}")
-
-    # 「定石（数学）」または「例文（英語）」の表示
-    if "strategy" in df.columns:
-        with st.expander("💡 この問題の定石（解法の型）を確認する", expanded=False):
-            st.write(row["strategy"])
-    elif "sentence" in df.columns:
-        with st.expander("📖 例文を確認する", expanded=False):
-            st.write(f"**{row['sentence']}**")
-            st.write(f"訳: {row['translation']}")
-
-    # ボタン：解答 / 意味を表示
-    if st.button("解答を表示する"):
-        # 数学ならanswer、英語ならall_answersを表示
-        ans_col = "answer" if "answer" in df.columns else "all_answers"
-        st.success(f"### 【解答 / 意味】\n{row[ans_col]}")
-        
-        # 数学の解説がある場合
-        if "explanation" in df.columns:
-            st.divider()
-            st.write(f"#### 📝 ポイント解説\n{row['explanation']}")
-        # 英語のダミー選択肢がある場合
-        if "dummy_pool" in df.columns:
-            st.write(f"（誤答選択肢: {row['dummy_pool']}）")
-
+# ==========================================
+# 3. フィルタリングとセッション管理
+# ==========================================
+if sub == "システム英単語":
+    lv_map = {"すべて":"All", "Fundamental (1-600)":"Fundamental", "Essential (601-1200)":"Essential", "Advanced (1201-1700)":"Advanced", "Final (1701-2027)":"Final"}
+    selected_filter = st.sidebar.radio("レベル", list(lv_map.keys()))
+    filter_keyword, filter_col = lv_map[selected_filter], "level"
 else:
-    st.warning("データが見つかりません。CSVファイルを確認してください。")
+    all_cats = df_raw["category"].unique().tolist()
+    priority_cats = [c for c in all_cats if any(kw in str(c) for kw in ["微分", "積分", "極限"])]
+    other_cats = [c for c in all_cats if c not in priority_cats]
+    cats = ["すべて"] + sorted(priority_cats) + sorted(other_cats)
+    selected_filter = st.sidebar.radio("分野", cats)
+    filter_keyword, filter_col = selected_filter, "category"
 
-# フッター
-st.sidebar.caption("© 2026 入試数学の定石マスター")
+if "current_sub" not in st.session_state or st.session_state.current_sub != sub or st.session_state.get("last_filter") != selected_filter:
+    st.session_state.current_sub = sub
+    st.session_state.last_filter = selected_filter
+    df_f = df_raw.copy()
+    if selected_filter != "すべて":
+        df_f = df_raw[df_raw[filter_col].astype(str).str.contains(filter_keyword, case=False, na=False)]
+    st.session_state.df = df_f.sample(frac=1).reset_index(drop=True)
+    st.session_state.idx = 0
+    st.session_state.answered = False
+
+if st.session_state.df.empty:
+    st.warning("該当する問題がありません。")
+    st.stop()
+
+row = st.session_state.df.iloc[st.session_state.idx % len(st.session_state.df)]
+
+# ==========================================
+# 4. 表示ロジック
+# ==========================================
+
+# --- 【A】システム英単語 ---
+if sub == "システム英単語":
+    word = str(row["question"])
+    sentence = re.sub(re.escape(word), f"<span class='highlight'>{word}</span>", str(row["sentence"]), flags=re.IGNORECASE)
+    st.markdown(f'<div class="card orange-card">{sentence}</div>', unsafe_allow_html=True)
+    
+    if "choices" not in st.session_state:
+        ans_list = [x.strip() for x in re.split(r'[,、;]', str(row["all_answers"])) if x.strip()]
+        st.session_state.correct = ans_list[0]
+        dummies = [x.strip() for x in re.split(r'[,、;]', str(row["dummy_pool"])) if x.strip() and x.strip() != st.session_state.correct]
+        st.session_state.choices = random.sample([st.session_state.correct] + random.sample(dummies, min(3, len(dummies))), 4)
+    
+    c1, c2 = st.columns(2)
+    for i, val in enumerate(st.session_state.choices):
+        with (c1 if i % 2 == 0 else c2):
+            if st.button(val, key=f"t_{st.session_state.idx}_{i}", disabled=st.session_state.answered):
+                st.session_state.selected, st.session_state.answered = val, True
+                st.rerun()
+    
+    if st.session_state.answered:
+        if st.session_state.selected == st.session_state.correct: st.success("正解")
+        else: st.error(f"正解：{st.session_state.correct}")
+        st.write(f"意味：{row['all_answers']}")
+        if st.button("次の問題へ"):
+            if "choices" in st.session_state: del st.session_state.choices
+            st.session_state.idx += 1
+            st.session_state.answered = False
+            st.rerun()
+
+# --- 【B】数学 ---
+else:
+    st.markdown(f'<div class="card blue-card">【{row["category"]}】例題</div>', unsafe_allow_html=True)
+    
+    # 1. 問題文の表示（数式を綺麗に）
+    q_text = str(row["question"]).replace('$', '').replace('\\\\', '\\')
+    st.latex(rf"\displaystyle {q_text}")
+    
+    if not st.session_state.answered:
+        if st.button("定石と解答を確認する"):
+            st.session_state.answered = True
+            st.rerun()
+    else:
+        st.markdown("---")
+        st.write("**💡 定石・方針**")
+        st.info(str(row['strategy']))
+        
+        st.write("**【解答・略解】**")
+        # $を削除し、保護されたエスケープを戻す
+        ans_raw = str(row["answer"]).replace('$', '').replace('\\\\', '\\')
+        
+        # 2. 解答の表示（数式判定）
+        if any(c in ans_raw for c in ['\\', '^', '_', '{', '}', 'int', 'lim', 'frac']):
+            # raw f-stringでバックスラッシュを保護しつつ st.latex で描画
+            st.latex(rf"\displaystyle {ans_raw}")
+        else:
+            st.write(ans_raw)
+        
+        if "explanation" in row and pd.notna(row["explanation"]):
+            st.write("**📝 ポイント解説**")
+            # 解説文も数式があれば対応
+            exp_text = str(row["explanation"]).replace('$', '').replace('\\\\', '\\')
+            if '\\' in exp_text:
+                st.latex(rf"\displaystyle {exp_text}")
+            else:
+                st.info(exp_text)
+        
+        if st.button("次の問題へ"):
+            st.session_state.idx += 1
+            st.session_state.answered = False
+            st.rerun()
