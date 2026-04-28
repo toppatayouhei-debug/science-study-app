@@ -17,8 +17,9 @@ st.markdown("""
 # CSS部分をこれに上書き保存
 st.markdown("""
 <style>
+st.markdown("""
+<style>
 .stApp { background:#f8fafc; }
-/* カードの中の文字色を「#111 (ほぼ黒)」に固定 */
 .card { 
     background:white; 
     padding:22px; 
@@ -30,7 +31,6 @@ st.markdown("""
 .orange-card { border-left: 8px solid #ff9800; }
 .blue-card   { border-left: 8px solid #2196f3; }
 
-/* ボタンの中の文字も見えにくい場合はここを調整 */
 .stButton button { 
     width: 100%; 
     border-radius: 12px; 
@@ -43,6 +43,7 @@ st.markdown("""
     border: 2px solid #ff9800 !important; 
 }
 </style>
+""", unsafe_allow_html=True)
 """, unsafe_allow_html=True)
 """, unsafe_allow_html=True)
 
