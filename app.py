@@ -4,7 +4,7 @@ import random
 import re
 
 # ==========================================
-# 1. デザイン設定
+# 1. デザイン設定 (CSS)
 # ==========================================
 st.set_page_config(page_title="理系学習アプリ", page_icon="🧬")
 
@@ -35,8 +35,21 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. データの読み込み
+# 2. 補助関数 (数式表示の揺れを吸収)
 # ==========================================
+def format_math_text(text):
+    """CSV内の数式表記の揺れ（$の有無など）を補正してMarkdown用に整える"""
+    if pd.isna(text): return ""
+    text = str(text).strip()
+    
+    # ゴミとして残った $ を一旦すべて除去
+    clean_text = text.replace("$", "").strip()
+    
+    # 数式記号が含まれる場合、全体を $ で囲み直してレンダリングさせる
+    if any(c in clean_text for c in ["\\", "^", "_", "{", "}"]):
+        return f"${clean_text}$"
+    return clean_text
+
 def load_data(subject):
     file_map = {
         "システム英単語": "final_tango_list.csv",
@@ -48,15 +61,6 @@ def load_data(subject):
         return df
     except:
         return pd.DataFrame()
-
-# 数式表記を整える補助関数
-def format_math_text(text):
-    if pd.isna(text): return ""
-    text = str(text)
-    # バックスラッシュ等があるのに $ で囲まれていない場合、全体を囲む（簡易対応）
-    if ("\\" in text or "^" in text or "_" in text) and "$" not in text:
-        return f"${text}$"
-    return text
 
 # ==========================================
 # 3. メイン処理
@@ -73,10 +77,16 @@ if df_raw.empty:
     st.warning(f"{sub} のCSVファイルが見つかりません。")
     st.stop()
 
-# --- フィルター ---
+# --- フィルター設定 ---
 selected_filter = "すべて"
 if sub == "システム英単語":
-    lv_map = {"すべて":"All", "Fundamental (1-600)":"Fundamental", "Essential (601-1200)":"Essential", "Advanced (1201-1700)":"Advanced", "Final (1701-2027)":"Final"}
+    lv_map = {
+        "すべて": "All",
+        "Fundamental (1-600)": "Fundamental",
+        "Essential (601-1200)": "Essential",
+        "Advanced (1201-1700)": "Advanced",
+        "Final (1701-2027)": "Final"
+    }
     selected_filter = st.sidebar.radio("レベルを選択", list(lv_map.keys()))
     filter_keyword = lv_map[selected_filter]
     filter_col = "level"
@@ -90,6 +100,7 @@ else:
     filter_keyword = selected_filter
     filter_col = "category"
 
+# --- セッション初期化 ---
 if ("current_sub" not in st.session_state or st.session_state.current_sub != sub or 
     st.session_state.get("last_filter") != selected_filter):
     
@@ -110,7 +121,11 @@ if st.session_state.df.empty:
 
 row = st.session_state.df.iloc[st.session_state.idx % len(st.session_state.df)]
 
-# --- 表示 ---
+# ==========================================
+# 4. コンテンツ表示
+# ==========================================
+
+# --- 英単語 ---
 if sub == "システム英単語":
     word = str(row["question"])
     sentence = re.sub(re.escape(word), f"<span class='highlight'>{word}</span>", str(row["sentence"]), flags=re.IGNORECASE)
@@ -142,6 +157,7 @@ if sub == "システム英単語":
             st.session_state.answered = False
             st.rerun()
 
+# --- 数学 ---
 elif sub == "数Ⅲ積分 定石":
     st.markdown(f'<div class="card blue-card">【{row["category"]}】次の不定積分を求めよ：</div>', unsafe_allow_html=True)
     st.latex(r"\int " + str(row["question"]) + r" \, dx")
@@ -155,12 +171,12 @@ elif sub == "数Ⅲ積分 定石":
         st.write("**【解答】**")
         
         ans_text = str(row["answer"])
-        # 日本語混じりの場合
+        # 日本語混じりかどうか判定
         if re.search(r'[ぁ-んァ-ヶ亜-熙]', ans_text):
             st.markdown(format_math_text(ans_text))
         else:
-            # 純粋な数式のみなら大きく表示
-            st.latex(ans_text)
+            # 数式のみなら LaTeX モード
+            st.latex(ans_text.replace("$", ""))
         
         if "explanation" in row and pd.notna(row["explanation"]):
             st.write("---")
