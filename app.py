@@ -5,7 +5,7 @@ import re
 import os
 
 # ==========================================
-# 1. ページ設定
+# 1. デザイン設定
 # ==========================================
 st.set_page_config(
     page_title="理系には、勝ち方がある",
@@ -13,134 +13,58 @@ st.set_page_config(
     layout="centered"
 )
 
-# ==========================================
-# 2. デザイン
-# ==========================================
 st.markdown("""
 <style>
-.stApp {
-    background-color: #f0f2f5 !important;
-}
-
-.header-container {
-    text-align: center;
-    margin-bottom: 25px;
-}
-
-.main-title {
-    color: #1e3a8a;
-    font-size: 2.2rem;
-    font-weight: 800;
-}
-
+.stApp { background-color: #f0f2f5 !important; }
 .card {
     background-color: white !important;
     padding: 20px !important;
     border-radius: 12px !important;
     box-shadow: 0 4px 10px rgba(0,0,0,0.08) !important;
-    margin-bottom: 18px;
+    margin-bottom: 20px;
 }
-
-.orange-card {
-    border-left: 8px solid #ff9800 !important;
-}
-
-.blue-card {
-    border-left: 8px solid #2196f3 !important;
-}
-
-.highlight {
-    color: #ff9800 !important;
-    font-weight: bold !important;
-}
-
-.stButton button {
-    width: 100%;
-    border-radius: 10px;
-    font-weight: bold;
-    min-height: 45px;
-}
+.blue-card { border-left: 8px solid #2196f3 !important; }
+.stButton button { width: 100%; border-radius: 10px; font-weight: bold; }
 </style>
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 3. 数式処理（重要修正版）
+# 2. 数式レンダリング（完全安全版）
 # ==========================================
-def clean_math(text):
-    if pd.isna(text):
+def render_math(text):
+    """
+    LaTeXを一切壊さずにそのまま表示する
+    """
+    if text is None or pd.isna(text):
         return ""
 
-    t = str(text).strip()
+    text = str(text)
 
-    # LaTeX記号整理
-    t = t.replace("$", "")
-    t = t.replace(r"\(", "")
-    t = t.replace(r"\)", "")
-    t = t.replace(r"\[", "")
-    t = t.replace(r"\]", "")
+    # 改行だけ整形（数式は絶対触らない）
+    text = text.replace("\\n", "\n")
 
-    # 基本記号
-    t = t.replace("theta", r"\theta")
-    t = t.replace("pi", r"\pi")
-    t = t.replace("sin", r"\sin")
-    t = t.replace("cos", r"\cos")
-    t = t.replace("tan", r"\tan")
-    t = t.replace("sqrt", r"\sqrt")
-    t = t.replace("int", r"\int")
-    t = t.replace("vec", r"\vec")
+    # ( ) を軽く数式扱いしたい場合のみ
+    # → 中身は一切変更しない
+    text = re.sub(r'\((.*?)\)', r'$\1$', text)
 
-    # x^2 → x^{2}
-    t = re.sub(r'([a-zA-Z0-9\)])\^([0-9a-zA-Z]+)', r'\1^{\2}', t)
-
-    return t
-
-
-def render_inline_math(text):
-    """
-    文中の数式を $...$ に変換（改善版）
-    """
-    if pd.isna(text):
-        return ""
-
-    s = str(text)
-
-    # ① 既存LaTeX崩れ防止
-    s = s.replace("\\(", "$").replace("\\)", "$")
-    s = s.replace("\\[", "$").replace("\\]", "$")
-
-    # ② x^2 → x^{2}
-    s = re.sub(r'([a-zA-Z0-9\)])\^([0-9a-zA-Z]+)', r'\1^{\2}', s)
-
-    # ③ 数式っぽい部分を検出して $...$ にする
-    def repl(m):
-        expr = m.group(0)
-
-        # 数字や記号を含むものだけ数式扱い
-        if any(c.isdigit() for c in expr) or "^" in expr or "=" in expr:
-            return f"${clean_math(expr)}$"
-        return expr
-
-    return re.sub(r'[a-zA-Z0-9\+\-\*/=\^\(\)\{\}]+', repl, s)
+    return text
 
 
 # ==========================================
-# 4. 表示関数（関数化）
+# 3. 解説UI（関数化）
 # ==========================================
 def show_strategy(text):
-    st.markdown("##### 💡 攻略の定石")
-    st.markdown(render_inline_math(str(text)), unsafe_allow_html=False)
+    st.markdown("### 💡 攻略の定石")
+    st.markdown(render_math(text))
 
 
 def show_explanation(text):
-    if pd.isna(text) or not str(text).strip():
-        return
-
-    st.markdown("##### ポイント解説")
-    st.markdown(render_inline_math(str(text)), unsafe_allow_html=False)
+    st.markdown("### 📝 ポイント解説")
+    st.markdown(render_math(text))
 
 
 # ==========================================
-# 5. データ読み込み
+# 4. データ読み込み
 # ==========================================
 @st.cache_data
 def load_data(subject):
@@ -150,176 +74,81 @@ def load_data(subject):
         "入試数学の定石（ⅠAⅡB C）": "math_std.csv"
     }
 
-    file_name = file_map.get(subject)
-    if not file_name:
+    file_path = file_map.get(subject)
+    if not file_path:
         return pd.DataFrame()
 
-    try:
-        base = os.path.dirname(os.path.abspath(__file__))
-        path = os.path.join(base, file_name)
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    full_path = os.path.join(current_dir, file_path)
 
-        df = pd.read_csv(path, encoding="utf-8-sig")
+    try:
+        df = pd.read_csv(full_path, encoding="utf-8-sig")
         df.columns = df.columns.str.strip()
         return df
-
     except Exception as e:
         st.error(f"読み込み失敗: {e}")
         return pd.DataFrame()
 
 
 # ==========================================
-# 6. UI
+# 5. UI
 # ==========================================
 st.title("理系には、勝ち方がある")
 
 subject = st.sidebar.selectbox(
     "科目を選択",
-    [
-        "選択してください",
-        "システム英単語",
-        "入試数学の定石（数Ⅲ）",
-        "入試数学の定石（ⅠAⅡB C）"
-    ]
+    ["選択してください", "システム英単語", "入試数学の定石（数Ⅲ）", "入試数学の定石（ⅠAⅡB C）"]
 )
 
 if subject == "選択してください":
     st.stop()
 
-df_raw = load_data(subject)
+df = load_data(subject)
 
-cats = ["すべて"] + list(
-    df_raw["category"].dropna().unique()
-    if "category" in df_raw.columns
-    else df_raw["level"].dropna().unique()
-)
+if df.empty:
+    st.error("データがありません")
+    st.stop()
 
-choice = st.sidebar.radio("分野・レベル選択", cats)
+cats = ["すべて"] + list(df["category"].dropna().unique())
+choice = st.sidebar.radio("分野", cats)
 
-if choice == "すべて":
-    df_filtered = df_raw
-else:
-    if "category" in df_raw.columns:
-        df_filtered = df_raw[df_raw["category"] == choice]
-    else:
-        df_filtered = df_raw[df_raw["level"] == choice]
+if choice != "すべて":
+    df = df[df["category"] == choice]
 
-
-# ==========================================
-# 7. セッション管理
-# ==========================================
-key = f"{subject}_{choice}"
-
-if "session_key" not in st.session_state or st.session_state.session_key != key:
-    st.session_state.session_key = key
-    st.session_state.df = df_filtered.sample(frac=1).reset_index(drop=True)
+if "idx" not in st.session_state:
     st.session_state.idx = 0
     st.session_state.answered = False
 
-if st.session_state.df.empty:
-    st.stop()
-
-row = st.session_state.df.iloc[
-    st.session_state.idx % len(st.session_state.df)
-]
-
+row = df.iloc[st.session_state.idx % len(df)]
 
 # ==========================================
-# 8. 英単語モード
+# 6. 表示
 # ==========================================
-if subject == "システム英単語":
+st.markdown(f"""
+<div class="card blue-card">
+【{row.get('category','')}】
+</div>
+""", unsafe_allow_html=True)
 
-    word = str(row["question"])
-    sentence = str(row["sentence"])
+st.markdown("## " + render_math(row["question"]))
 
-    sentence = re.sub(
-        re.escape(word),
-        f"<span class='highlight'>{word}</span>",
-        sentence,
-        flags=re.IGNORECASE
-    )
+if not st.session_state.answered:
+    if st.button("解法・定石を見る"):
+        st.session_state.answered = True
+        st.rerun()
 
-    st.markdown(
-        f'<div class="card orange-card">{sentence}</div>',
-        unsafe_allow_html=True
-    )
-
-    if "choices" not in st.session_state:
-
-        ans_list = [
-            x.strip() for x in re.split(r'[,、;]', str(row["all_answers"]))
-            if x.strip()
-        ]
-
-        correct = ans_list[0]
-
-        dummy_pool = [
-            x.strip() for x in re.split(r'[,、;]', str(row["dummy_pool"]))
-            if x.strip() and x.strip() != correct
-        ]
-
-        while len(dummy_pool) < 3:
-            dummy_pool.append("dummy")
-
-        choices = [correct] + random.sample(dummy_pool, 3)
-        random.shuffle(choices)
-
-        st.session_state.choices = choices
-        st.session_state.correct = correct
-
-    cols = st.columns(2)
-
-    for i, choice in enumerate(st.session_state.choices):
-        with cols[i % 2]:
-            if st.button(choice, key=f"choice_{i}", disabled=st.session_state.answered):
-                st.session_state.selected = choice
-                st.session_state.answered = True
-                st.rerun()
-
-    if st.session_state.answered:
-
-        if st.session_state.selected == st.session_state.correct:
-            st.success("Correct!")
-        else:
-            st.error(f"Incorrect... 正解：{st.session_state.correct}")
-
-        st.write(f"意味: {row['all_answers']}")
-
-        if st.button("次の問題へ"):
-            st.session_state.idx += 1
-            st.session_state.answered = False
-            del st.session_state["choices"]
-            st.rerun()
-
-
-# ==========================================
-# 9. 数学モード
-# ==========================================
 else:
+    st.markdown("---")
 
-    st.markdown(
-        f'<div class="card blue-card">【{row["category"]}】</div>',
-        unsafe_allow_html=True
-    )
+    show_strategy(row.get("strategy", ""))
 
-    st.latex(clean_math(row["question"]))
+    st.markdown("### 【解答】")
+    st.markdown(render_math(row.get("answer", "")))
 
-    if not st.session_state.answered:
+    if "explanation" in row and pd.notna(row["explanation"]):
+        show_explanation(row["explanation"])
 
-        if st.button("定石と解答を確認する"):
-            st.session_state.answered = True
-            st.rerun()
-
-    else:
-        st.markdown("---")
-
-        show_strategy(row["strategy"])
-
-        st.markdown("##### 【解答】")
-        st.latex(clean_math(row["answer"]))
-
-        show_explanation(row.get("explanation", ""))
-
-        if st.button("次の問題へ"):
-            st.session_state.idx += 1
-            st.session_state.answered = False
-            st.rerun()
+    if st.button("次へ"):
+        st.session_state.idx += 1
+        st.session_state.answered = False
+        st.rerun()
