@@ -64,7 +64,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 3. 数式処理
+# 3. 数式処理（重要修正版）
 # ==========================================
 def clean_math(text):
     if pd.isna(text):
@@ -72,38 +72,63 @@ def clean_math(text):
 
     t = str(text).strip()
 
+    # LaTeX記号整理
     t = t.replace("$", "")
     t = t.replace(r"\(", "")
     t = t.replace(r"\)", "")
     t = t.replace(r"\[", "")
     t = t.replace(r"\]", "")
 
+    # 基本記号
+    t = t.replace("theta", r"\theta")
+    t = t.replace("pi", r"\pi")
+    t = t.replace("sin", r"\sin")
+    t = t.replace("cos", r"\cos")
+    t = t.replace("tan", r"\tan")
+    t = t.replace("sqrt", r"\sqrt")
+    t = t.replace("int", r"\int")
+    t = t.replace("vec", r"\vec")
+
     # x^2 → x^{2}
-    t = re.sub(r'([a-zA-Z0-9\)\}])\^([0-9a-zA-Z]+)', r'\1^{\2}', t)
+    t = re.sub(r'([a-zA-Z0-9\)])\^([0-9a-zA-Z]+)', r'\1^{\2}', t)
 
     return t
 
 
 def render_inline_math(text):
+    """
+    文中の数式を $...$ に変換（改善版）
+    """
     if pd.isna(text):
         return ""
 
     s = str(text)
 
-    pattern = r'([a-zA-Z0-9\\+\-*/=^{}()]+(?:\s*[=+\-*/]\s*[a-zA-Z0-9\\+\-*/=^{}()]+)+|[a-zA-Z]+\^[0-9]+)'
+    # ① 既存LaTeX崩れ防止
+    s = s.replace("\\(", "$").replace("\\)", "$")
+    s = s.replace("\\[", "$").replace("\\]", "$")
 
+    # ② x^2 → x^{2}
+    s = re.sub(r'([a-zA-Z0-9\)])\^([0-9a-zA-Z]+)', r'\1^{\2}', s)
+
+    # ③ 数式っぽい部分を検出して $...$ にする
     def repl(m):
-        expr = clean_math(m.group(1))
-        return f"${expr}$"
+        expr = m.group(0)
 
-    return re.sub(pattern, repl, s)
+        # 数字や記号を含むものだけ数式扱い
+        if any(c.isdigit() for c in expr) or "^" in expr or "=" in expr:
+            return f"${clean_math(expr)}$"
+        return expr
+
+    return re.sub(r'[a-zA-Z0-9\+\-\*/=\^\(\)\{\}]+', repl, s)
+
 
 # ==========================================
-# 4. 表示関数（追加）
+# 4. 表示関数（関数化）
 # ==========================================
 def show_strategy(text):
     st.markdown("##### 💡 攻略の定石")
-    st.info(str(text))
+    st.markdown(render_inline_math(str(text)), unsafe_allow_html=False)
 
 
 def show_explanation(text):
@@ -111,7 +136,8 @@ def show_explanation(text):
         return
 
     st.markdown("##### ポイント解説")
-    st.markdown(render_inline_math(text))
+    st.markdown(render_inline_math(str(text)), unsafe_allow_html=False)
+
 
 # ==========================================
 # 5. データ読み込み
@@ -139,6 +165,7 @@ def load_data(subject):
     except Exception as e:
         st.error(f"読み込み失敗: {e}")
         return pd.DataFrame()
+
 
 # ==========================================
 # 6. UI
@@ -176,6 +203,7 @@ else:
     else:
         df_filtered = df_raw[df_raw["level"] == choice]
 
+
 # ==========================================
 # 7. セッション管理
 # ==========================================
@@ -194,8 +222,9 @@ row = st.session_state.df.iloc[
     st.session_state.idx % len(st.session_state.df)
 ]
 
+
 # ==========================================
-# 8. 英単語
+# 8. 英単語モード
 # ==========================================
 if subject == "システム英単語":
 
@@ -261,8 +290,9 @@ if subject == "システム英単語":
             del st.session_state["choices"]
             st.rerun()
 
+
 # ==========================================
-# 9. 数学
+# 9. 数学モード
 # ==========================================
 else:
 
