@@ -5,7 +5,7 @@ import re
 import os
 
 # ==========================================
-# 1. デザイン設定
+# 1. デザイン設定 (一切の変更なし)
 # ==========================================
 st.set_page_config(
     page_title="理系には、勝ち方がある",
@@ -37,64 +37,65 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. ロジック関数 (組合せ表示・改行修正版)
+# 2. 数式エンジンの再定義 (最重要)
 # ==========================================
-def clean_math(text):
-    """数式生データをLaTeX形式へ。nCr記法もサポート"""
-    if not text or pd.isna(text): return ""
-    text = str(text)
+def latex_engine(text, is_block=False):
+    """生データを純粋なLaTeXコマンドに変換する"""
+    if not text: return ""
+    t = str(text)
     
-    # 制御文字のクリーンアップ
-    text = text.replace(r'\displaystyle', '').replace(r'\\', '\\')
-    text = text.replace(r'\(', '').replace(r'\)', '').replace(r'\[', '').replace(r'\]', '').replace('$', '')
+    # 物理的なゴミ・不要なエスケープの除去
+    t = t.replace(r'\displaystyle', '').replace(r'\\', '\\')
+    t = t.replace(r'\(', '').replace(r'\)', '').replace(r'\[', '').replace(r'\]', '').replace('$', '')
     
-    # 【追加】組合せ記法 _{n}C_{r} や nCr を {}_{n}C_{r} 形式に統一
-    text = re.sub(r'(\d+)?_?\{?([nN])\}?C_?\{?([rR\d]+)\}?', r'{}_{\2}C_{\3}', text)
-    # 数字直接の nCr (例: 3C1 -> {}_{3}C_{1})
-    text = re.sub(r'\b(\d+)C(\d+)\b', r'{}_{\1}C_{\2}', text)
-
-    # 累乗: ^2 -> ^{2}
-    text = re.sub(r'\^([0-9a-zA-Z\(\)\{\}\-]+)', r'^{\1}', text)
+    # 1. 組合せ記法の変換 ( _{n}C_{r} -> {}_{n}C_{r} )
+    t = re.sub(r'_?\{?([nN\d]+)\}?C_?\{?([rR\d]+)\}?', r'{}_{\1}C_{\2}', t)
     
-    # 基本関数
-    funcs = ['sin', 'cos', 'tan', 'log', 'ln', 'exp', 'theta', 'pi', 'sqrt']
+    # 2. 累乗の正規化 ( ^2 -> ^{2} )
+    t = re.sub(r'\^([0-9a-zA-Z\(\)\{\}\-\+]+)', r'^{\1}', t)
+    
+    # 3. 関数にバックスラッシュを付与 (重複防止)
+    funcs = ['sin', 'cos', 'tan', 'log', 'ln', 'exp', 'theta', 'pi', 'sqrt', 'circ']
     for f in funcs:
-        text = re.sub(rf'(?<!\\)\b{f}\b', rf'\\{f}', text)
-        
-    return text.strip()
+        t = re.sub(rf'(?<!\\)\b{f}\b', rf'\\{f}', t)
+    
+    # 4. ブロック表示時のみ分数を \frac 化
+    if is_block:
+        t = re.sub(r'(\d+)\s*/\s*(\d+)', r'\\frac{\1}{\2}', t)
+    
+    return t.strip()
 
-def render_mixed_content(text, is_strategy=False):
-    """テキストと数式のハイブリッドレンダリング"""
+def render_content(text):
+    """
+    文章中の (数式) を確実に $数式$ に変換し、
+    地文のバックスラッシュを徹底的に排除する。
+    """
     if not text or pd.isna(text): return ""
     
-    # アイコンと改行の正規化
-    raw_text = str(text).replace('\\n', '\n').replace('📝', '').strip()
-    lines = raw_text.split('\n')
+    # 全体の前処理
+    raw = str(text).replace('\\n', '\n').replace('📝', '').strip()
     
-    output_md = []
-    for line in lines:
-        line = line.strip()
-        if not line: continue
+    # ( ... ) で囲まれた部分を LaTeX 用に置換
+    def process_match(m):
+        inner = m.group(1).strip()
+        # カッコ内は latex_engine を通して $ で囲む
+        return f"${latex_engine(inner, is_block=False)}$"
+
+    # 文章全体に対して数式抽出・変換を適用
+    processed = re.sub(r'\((.*?)\)', process_match, raw)
+    
+    # 地文（$記号の外側）に残ったバックスラッシュを消去
+    segments = processed.split('$')
+    final_parts = []
+    for i, seg in enumerate(segments):
+        if i % 2 == 0: # テキスト部分
+            # 地文のバックスラッシュや中途半端なコマンドを消去
+            clean_seg = seg.replace('\\', '').replace('displaystyle', '')
+            final_parts.append(clean_seg)
+        else: # 数式部分
+            final_parts.append(f"${seg}$")
             
-        # 文章と数式 ( ... ) の分割
-        parts = re.split(r'(\(.*?\))', line)
-        line_md = ""
-        for part in parts:
-            if part.startswith('(') and part.endswith(')'):
-                inner = part[1:-1].strip()
-                line_md += f" ${clean_math(inner)}$ "
-            else:
-                # バックスラッシュを文字として出さない
-                line_md += part.replace('\\', '')
-        
-        output_md.append(line_md)
-    
-    final_md = "\n\n".join(output_md)
-    
-    if is_strategy:
-        return final_md
-    else:
-        st.markdown(final_md)
+    return "".join(final_parts)
 
 @st.cache_data
 def load_data(subject):
@@ -107,18 +108,16 @@ def load_data(subject):
     if not file_path: return pd.DataFrame()
     try:
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        full_path = os.path.join(current_dir, file_path)
-        df = pd.read_csv(full_path, encoding="utf-8-sig")
+        df = pd.read_csv(os.path.join(current_dir, file_path), encoding="utf-8-sig")
         df.columns = df.columns.str.strip()
         return df
     except:
         return pd.DataFrame()
 
 # ==========================================
-# 3. アプリ本体
+# 3. アプリケーション本体
 # ==========================================
 st.markdown('<div class="header-container"><div class="main-title">理系には、勝ち方がある</div></div>', unsafe_allow_html=True)
-
 sub = st.sidebar.selectbox("科目を選択", ["選択してください", "システム英単語", "入試数学の定石（数Ⅲ）", "入試数学の定石（ⅠAⅡB C）"])
 
 if sub == "選択してください":
@@ -128,6 +127,7 @@ if sub == "選択してください":
 df_raw = load_data(sub)
 if df_raw.empty: st.stop()
 
+# フィルタリング
 if sub == "システム英単語":
     lv_map = {"すべて": "All", "Fundamental (1-600)": "Fundamental", "Essential (601-1200)": "Essential", "Advanced (1201-1700)": "Advanced", "Final (1701-2027)": "Final"}
     filter_label = st.sidebar.radio("レベル選択", list(lv_map.keys()))
@@ -153,10 +153,10 @@ if st.session_state.df.empty:
 row = st.session_state.df.iloc[st.session_state.idx % len(st.session_state.df)]
 
 # ==========================================
-# 4. メイン画面
+# 4. レンダリング実行
 # ==========================================
 if sub == "システム英単語":
-    # 英語モード (省略 - 仕様通り)
+    # 英語モード (仕様維持)
     word = str(row["question"])
     sentence = re.sub(re.escape(word), f"<span class='highlight'>{word}</span>", str(row["sentence"]), flags=re.IGNORECASE)
     st.markdown(f'<div class="card orange-card">{sentence}</div>', unsafe_allow_html=True)
@@ -182,7 +182,8 @@ if sub == "システム英単語":
 else:
     # 数学モード
     st.markdown(f'<div class="card blue-card">【{row["category"]}】</div>', unsafe_allow_html=True)
-    st.latex(rf"\displaystyle {clean_math(row['question'])}")
+    # 問題・解答は st.latex (独立ブロック)
+    st.latex(rf"\displaystyle {latex_engine(row['question'], is_block=True)}")
 
     if not st.session_state.answered:
         if st.button("定石と解答を確認する"):
@@ -191,18 +192,15 @@ else:
     else:
         st.markdown("---")
         st.markdown("##### 💡 攻略の定石")
-        # st.info内で綺麗にレンダリング
-        st.info(render_mixed_content(row["strategy"], is_strategy=True))
+        # 定石・解説はハイブリッドレンダリング
+        st.info(render_content(row["strategy"]))
         
         st.markdown("##### 【解答】")
-        # 重複表示を防ぐため一回のみレンダリング
-        st.latex(rf"\displaystyle {clean_math(row['answer'])}")
+        st.latex(rf"\displaystyle {latex_engine(row['answer'], is_block=True)}")
 
         if "explanation" in row and pd.notna(row["explanation"]):
             st.markdown("##### 📝 ポイント解説")
-            render_mixed_content(row["explanation"])
+            st.markdown(render_content(row["explanation"]))
 
         if st.button("次の問題へ"):
-            st.session_state.idx += 1
-            st.session_state.answered = False
-            st.rerun()
+            st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
