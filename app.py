@@ -30,48 +30,66 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. 便利関数 (変更なし)
+# 2. 便利関数
 # ==========================================
 def clean_math(text):
-    """数式タグを整理し、st.latex用に調整する"""
+    """数式タグを整理し、st.latex用に調整"""
     text = str(text)
+
+    # 数式囲み除去
     text = text.replace(r'\(', '').replace(r'\)', '')
     text = text.replace(r'\[', '').replace(r'\]', '')
     text = text.replace('$', '')
+
+    # ^2 → ^{2}
+    text = re.sub(r'\^([0-9a-zA-Z]+)', r'^{\1}', text)
+
+    # sqrt(x) → \sqrt{x}
+    text = re.sub(r'sqrt\((.*?)\)', r'\\sqrt{\1}', text)
+
+    # sin cos tan log ln exp を LaTeX化
+    funcs = ['sin', 'cos', 'tan', 'log', 'ln', 'exp']
+    for f in funcs:
+        text = re.sub(rf'\b{f}\b', rf'\\{f}', text)
+
+    # 分数 a/b（単純形のみ）
+    text = re.sub(r'(?<!\{)(\d+)\s*/\s*(\d+)', r'\\frac{\1}{\2}', text)
+
     return text.strip()
 
 @st.cache_data
 def load_data(subject):
-    # すべて CSV ファイルとして読み込むように修正
     file_map = {
         "システム英単語": "final_tango_list.csv",
         "入試数学の定石（数Ⅲ）": "math3.csv",
         "入試数学の定石（ⅠAⅡB C）": "math_std.csv"
     }
+
     file_path = file_map.get(subject)
     if not file_path:
         return pd.DataFrame()
-    
-    # 実行ファイルのディレクトリを取得してパスを確実に通す
+
     current_dir = os.path.dirname(os.path.abspath(__file__))
     full_path = os.path.join(current_dir, file_path)
-    
+
     try:
-        # JSONではなくCSVとして読み込む (encodingは念のためutf-8-sigを維持)
         df = pd.read_csv(full_path, encoding="utf-8-sig")
         df.columns = df.columns.str.strip()
         return df
     except Exception as e:
-        # ここでエラーが出る場合はファイル名または配置場所の不一致です
         st.error(f"データの読み込みに失敗しました ({file_path}): {e}")
         return pd.DataFrame()
 
 # ==========================================
 # 3. ヘッダー & サイドバー (変更なし)
 # ==========================================
-st.markdown('<div class="header-container"><div class="main-title">理系には、勝ち方がある</div></div>', unsafe_allow_html=True)
+st.markdown(
+    '<div class="header-container"><div class="main-title">理系には、勝ち方がある</div></div>',
+    unsafe_allow_html=True
+)
 
 st.sidebar.title("🧬 学習メニュー")
+
 sub = st.sidebar.selectbox(
     "科目を選択",
     ["選択してください", "システム英単語", "入試数学の定石（数Ⅲ）", "入試数学の定石（ⅠAⅡB C）"]
@@ -82,9 +100,10 @@ if sub == "選択してください":
     st.stop()
 
 # ==========================================
-# 4. データ準備とフィルタリング (ロジック維持)
+# 4. データ準備とフィルタリング
 # ==========================================
 df_raw = load_data(sub)
+
 if df_raw.empty:
     st.warning("データファイルが見つかりません。")
     st.stop()
@@ -97,34 +116,46 @@ if sub == "システム英単語":
         "Advanced (1201-1700)": "Advanced",
         "Final (1701-2027)": "Final"
     }
+
     filter_label = st.sidebar.radio("レベル選択", list(lv_map.keys()))
     current_filter_val = lv_map[filter_label]
     filter_col = "level"
+
 else:
     all_cats = []
     for c in df_raw["category"].astype(str):
         if c not in all_cats:
             all_cats.append(c)
+
     filter_label = st.sidebar.radio("分野・単元選択", ["すべて"] + all_cats)
     current_filter_val = filter_label
     filter_col = "category"
 
-if "current_sub" not in st.session_state or st.session_state.current_sub != sub or st.session_state.get("last_filter") != filter_label:
+if (
+    "current_sub" not in st.session_state
+    or st.session_state.current_sub != sub
+    or st.session_state.get("last_filter") != filter_label
+):
     st.session_state.current_sub = sub
     st.session_state.last_filter = filter_label
-    
+
     if filter_label == "すべて":
         df_filtered = df_raw.copy()
     else:
-        df_filtered = df_raw[df_raw[filter_col].astype(str).str.contains(current_filter_val, case=False, na=False)]
-    
+        df_filtered = df_raw[
+            df_raw[filter_col].astype(str).str.contains(
+                current_filter_val, case=False, na=False
+            )
+        ]
+
     if df_filtered.empty:
         st.session_state.df = pd.DataFrame()
     else:
         st.session_state.df = df_filtered.sample(frac=1).reset_index(drop=True)
-    
+
     st.session_state.idx = 0
     st.session_state.answered = False
+
     if "choices" in st.session_state:
         del st.session_state["choices"]
 
@@ -132,64 +163,111 @@ if st.session_state.df.empty:
     st.error(f"選択された範囲（{filter_label}）に該当するデータがありません。")
     st.stop()
 
-row = st.session_state.df.iloc[st.session_state.idx % len(st.session_state.df)]
+row = st.session_state.df.iloc[
+    st.session_state.idx % len(st.session_state.df)
+]
 
 # ==========================================
-# 5. 学習メイン画面 (ロジック維持)
+# 5. 学習メイン画面
 # ==========================================
 if sub == "システム英単語":
+
     word = str(row["question"])
-    sentence = re.sub(re.escape(word), f"<span class='highlight'>{word}</span>", str(row["sentence"]), flags=re.IGNORECASE)
-    st.markdown(f'<div class="card orange-card">{sentence}</div>', unsafe_allow_html=True)
-    
+
+    sentence = re.sub(
+        re.escape(word),
+        f"<span class='highlight'>{word}</span>",
+        str(row["sentence"]),
+        flags=re.IGNORECASE
+    )
+
+    st.markdown(
+        f'<div class="card orange-card">{sentence}</div>',
+        unsafe_allow_html=True
+    )
+
     if "choices" not in st.session_state:
-        ans_list = [x.strip() for x in re.split(r'[,、;]', str(row["all_answers"])) if x.strip()]
+
+        ans_list = [
+            x.strip()
+            for x in re.split(r'[,、;]', str(row["all_answers"]))
+            if x.strip()
+        ]
+
         correct = ans_list[0]
-        dummy_pool = [x.strip() for x in re.split(r'[,、;]', str(row["dummy_pool"])) if x.strip() and x.strip() != correct]
+
+        dummy_pool = [
+            x.strip()
+            for x in re.split(r'[,、;]', str(row["dummy_pool"]))
+            if x.strip() and x.strip() != correct
+        ]
+
         if len(dummy_pool) < 3:
-            dummy_pool = dummy_pool + ["(dummy)"] * (3 - len(dummy_pool))
-        choices = random.sample([correct] + random.sample(dummy_pool, 3), 4)
+            dummy_pool += ["(dummy)"] * (3 - len(dummy_pool))
+
+        choices = random.sample(
+            [correct] + random.sample(dummy_pool, 3), 4
+        )
+
         random.shuffle(choices)
+
         st.session_state.choices = choices
         st.session_state.correct = correct
 
     cols = st.columns(2)
+
     for i, choice in enumerate(st.session_state.choices):
         with (cols[0] if i % 2 == 0 else cols[1]):
-            if st.button(choice, key=f"btn_{i}", disabled=st.session_state.answered):
+            if st.button(
+                choice,
+                key=f"btn_{i}",
+                disabled=st.session_state.answered
+            ):
                 st.session_state.selected = choice
                 st.session_state.answered = True
                 st.rerun()
-    
+
     if st.session_state.answered:
         if st.session_state.selected == st.session_state.correct:
             st.success("Correct!")
         else:
             st.error(f"Incorrect... 正解：{st.session_state.correct}")
+
         st.write(f"**意味:** {row['all_answers']}")
+
         if st.button("次の問題へ"):
             st.session_state.idx += 1
             st.session_state.answered = False
             del st.session_state["choices"]
             st.rerun()
+
 else:
     # 数学モード
-    st.markdown(f'<div class="card blue-card">【{row["category"]}】</div>', unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="card blue-card">【{row["category"]}】</div>',
+        unsafe_allow_html=True
+    )
+
     st.latex(rf"\displaystyle {clean_math(row['question'])}")
-    
+
     if not st.session_state.answered:
+
         if st.button("定石と解答を確認する"):
             st.session_state.answered = True
             st.rerun()
+
     else:
         st.markdown("---")
         st.markdown("##### 💡 攻略の定石")
         st.info(row["strategy"])
+
         st.markdown("##### 【解答】")
         st.latex(rf"\displaystyle {clean_math(row['answer'])}")
+
         if "explanation" in row and pd.notna(row["explanation"]):
             st.markdown("##### 📝 ポイント解説")
             st.write(row["explanation"])
+
         if st.button("次の問題へ"):
             st.session_state.idx += 1
             st.session_state.answered = False
