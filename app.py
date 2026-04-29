@@ -5,7 +5,7 @@ import re
 import os
 
 # ==========================================
-# 1. デザイン設定
+# 1. デザイン設定 (変更なし)
 # ==========================================
 st.set_page_config(
     page_title="理系には、勝ち方がある",
@@ -37,66 +37,65 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. 便利関数 (納品用ブラッシュアップ版)
+# 2. 便利関数 (構造的修正版)
 # ==========================================
 def clean_math(text):
-    """数式生データをLaTeXとして成立する形に徹底洗浄"""
+    """数式内の記号をLaTeX形式に完全変換"""
     if not text: return ""
     text = str(text)
-
-    # 1. バックスラッシュの二重化やLaTeXコマンドの重複を整理
+    
+    # 生データの不要なタグ・エスケープを清掃
     text = text.replace(r'\\', '\\').replace(r'\displaystyle', '')
     text = text.replace(r'\(', '').replace(r'\)', '').replace(r'\[', '').replace(r'\]', '').replace('$', '')
 
-    # 2. 累乗の整形: x^2 -> x^{2} / x^10 -> x^{10}
-    # すでに括弧がある場合は二重にならないよう考慮
-    text = re.sub(r'\^([^{}\s]+)', r'^{\1}', text)
-
-    # 3. 平方根: sqrt(x) -> \sqrt{x}
+    # 累乗: x^2 -> x^{2}
+    text = re.sub(r'\^([0-9a-zA-Z]+)', r'^{\1}', text)
+    
+    # 平方根: sqrt(x) -> \sqrt{x}
     text = re.sub(r'sqrt\((.*?)\)', r'\\sqrt{\1}', text)
 
-    # 4. 三角関数・対数関数の処理
+    # 関数
     funcs = ['sin', 'cos', 'tan', 'log', 'ln', 'exp']
     for f in funcs:
         text = re.sub(rf'\b{f}\b', rf'\\{f}', text)
 
-    # 5. 分数の処理: 1/2 -> \frac{1}{2} (前後に数字がある場合のみ)
+    # 分数 1/2 -> \frac{1}{2}
     text = re.sub(r'(\d+)\s*/\s*(\d+)', r'\\frac{\1}{\2}', text)
 
     return text.strip()
 
 def render_explanation(text):
     """
-    解説文を『テキスト』『数式』『改行』に分解してレンダリング
+    数式とテキストを分離し、座標や等号のズレを修正してレンダリング
     """
     if pd.isna(text): return
-
-    # CSV由来の生バックスラッシュ文字や改行リテラルを置換
-    text = str(text).replace('\\n', '\n')
     
-    # 正規表現で (数式) または 改行 をキャプチャして分割
-    # カンマやスペースを含む (6, 10) 等も確実にキャプチャ
-    parts = re.split(r'(\(.*?\n?.*?\)|\n)', text)
+    # 1. 改行コードの正規化とテキストのクリーンアップ
+    raw_text = str(text).replace('\\n', '\n').strip()
+    
+    # 2. 数式抽出ロジックの改善
+    # カンマを含む座標 (6, 10) などが分割されないよう、
+    # 括弧の対を正しく抽出する
+    parts = re.split(r'(\(.*?\))', raw_text, flags=re.DOTALL)
 
     for part in parts:
         if not part: continue
         
-        if part == '\n':
-            # 意図的な改行を反映
-            st.write("")
-        elif part.startswith('(') and part.endswith(')'):
-            # 数式パート
+        # 括弧で囲まれている場合を数式として判定
+        if part.startswith('(') and part.endswith(')'):
             formula = part[1:-1].strip()
             if formula:
-                # 数式内の不要なバックスラッシュ等を消してからLatex化
-                f_cleaned = clean_math(formula)
-                st.latex(rf"\displaystyle {f_cleaned}")
+                # 数式として表示。等号(=)などが含まれてもst.latexなら中央揃えで綺麗に出る
+                st.latex(rf"\displaystyle {clean_math(formula)}")
         else:
-            # テキストパート
-            # 画面に残る生の LaTeX コマンドやバックスラッシュを完全に除去
-            t_cleaned = part.replace('\\', '').replace('displaystyle', '').strip()
-            if t_cleaned:
-                st.write(t_cleaned)
+            # テキスト部分：残っている制御文字を消去して表示
+            # 文中の「\」単体などは表示しない
+            clean_part = part.replace('\\', '').replace('displaystyle', '').strip()
+            if clean_part:
+                # 改行が含まれている場合は分割してwriteすることで、Streamlitの自動余白を活かす
+                for line in clean_part.split('\n'):
+                    if line.strip():
+                        st.write(line.strip())
 
 @st.cache_data
 def load_data(subject):
@@ -118,7 +117,7 @@ def load_data(subject):
         return pd.DataFrame()
 
 # ==========================================
-# 3. ヘッダー & サイドバー (変更なし)
+# 3. ヘッダー & サイドバー
 # ==========================================
 st.markdown(
     '<div class="header-container"><div class="main-title">理系には、勝ち方がある</div></div>',
@@ -136,7 +135,7 @@ if sub == "選択してください":
     st.stop()
 
 # ==========================================
-# 4. データ準備 (変更なし)
+# 4. データ準備
 # ==========================================
 df_raw = load_data(sub)
 if df_raw.empty:
@@ -178,7 +177,7 @@ if (
     if "choices" in st.session_state: del st.session_state["choices"]
 
 if st.session_state.df.empty:
-    st.error(f"該当するデータがありません。")
+    st.error(f"該当データがありません。")
     st.stop()
 
 row = st.session_state.df.iloc[st.session_state.idx % len(st.session_state.df)]
