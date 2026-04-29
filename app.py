@@ -24,75 +24,59 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. 徹底クリーンアップエンジン（安全第一・置換版）
+# 2. 徹底クリーンアップエンジン（究極安定版）
 # ==========================================
-def total_math_cleaner(text, is_block=False):
-    if not text or pd.isna(text): return ""
+def total_math_cleaner(text):
+    """数式パートのみを LaTeX 化する。日本語は絶対に通さない。"""
+    if not text: return ""
     
-    # 物理的なゴミ・特殊文字を削除
-    t = str(text).replace('\u3000', ' ').replace('\xa0', ' ').replace('\x00', ' ')
-    t = t.replace('\\', '').replace('displaystyle', '').replace('$', '')
-
-    # --- A. 文字列置換（replace なら PatternError は起きない） ---
-    # ギリシャ文字・数学関数
-    t = t.replace('theta', r'\theta ')
-    t = t.replace('pi', r'\pi ')
-    t = t.replace('sin', r'\sin ')
-    t = t.replace('cos', r'\cos ')
-    t = t.replace('tan', r'\tan ')
+    # バックスラッシュ等のノイズをリセット
+    t = str(text).replace('\\', '').replace('displaystyle', '').replace('$', '')
     
-    # 記号・演算子
-    t = t.replace('dx', r'\,dx').replace('dt', r'\,dt')
-    t = t.replace('int', r'\int ')
-    t = t.replace('vec', r'\vec ')
-    t = t.replace('sqrt', r'\sqrt ')
-    t = t.replace('times', r'\times ')
-    t = t.replace('dots', r'\dots ')
-    t = t.replace('infty', r'\infty ')
-    t = t.replace('circ', r'^{\circ}')
-
-    # --- B. 構造の微調整（最小限の正規表現） ---
-    # 指数（肩）
+    # 1. 記号の単純置換 (replace のみで安全に)
+    t = t.replace('theta', r'\theta ').replace('pi', r'\pi ')
+    t = t.replace('sin', r'\sin ').replace('cos', r'\cos ').replace('tan', r'\tan ')
+    t = t.replace('int', r'\int ').replace('vec', r'\vec ').replace('sqrt', r'\sqrt ')
+    t = t.replace('times', r'\times ').replace('dots', r'\dots ').replace('infty', r'\infty ')
+    t = t.replace('circ', r'^{\circ}').replace('dx', r'\,dx').replace('dt', r'\,dt')
+    
+    # 2. 構造の調整 (肩)
     t = re.sub(r'\^([0-9a-zA-Z]+)', r'^{\1}', t)
-    # 積分定数周りの整形
-    t = t.replace('+C', ' + C').replace('-C', ' - C')
-
-    # 分数（独立表示時のみ）
-    if is_block:
-        t = re.sub(r'(\d+)\s*/\s*(\d+)', r'\\frac{\1}{\2}', t)
-
-    # 虚数単位
-    t = t.replace(' i ', r' i ').replace('i ', r' i ')
-
-    # --- C. 「？」抹殺フィルタ ---
-    # ASCII文字と基本構造記号のみを許可
+    
+    # 3. LaTeXで表示できない「？」の原因（特殊空白など）を削除
+    # ASCII文字(32-126)と、LaTeX制御用の記号のみを許可
     t = "".join(char for char in t if 32 <= ord(char) <= 126 or char in '^{}_\\')
     
     return t.strip()
 
-def elegant_render(text):
+def elegant_render(text, is_question=False):
+    """
+    文章全体を解析。
+    - ( ) で囲まれた部分は LaTeX 数式として処理。
+    - ( ) の外側（日本語）はそのまま維持。
+    """
     if not text or pd.isna(text): return ""
-    raw = str(text).replace('\u3000', ' ').replace('\xa0', ' ').replace('\\n', '\n').replace('📝', '').strip()
     
+    raw = str(text).replace('\\n', '\n').strip()
+    
+    # カッコ ( ) で分割
     parts = re.split(r'(\(.*?\))', raw)
-    final_output = []
+    processed_parts = []
     
     for p in parts:
         if p.startswith('(') and p.endswith(')'):
+            # カッコの中身（数式）
             inner = p[1:-1].strip()
-            final_output.append(f" ${total_math_cleaner(inner)}$ ")
+            # 独立行として大きく見せたい場合は \displaystyle を付与
+            prefix = r"\displaystyle " if is_question else ""
+            processed_parts.append(f"${prefix}{total_math_cleaner(inner)}$")
         else:
-            # 地文：バックスラッシュを消し、記号を日本語フォントに
-            cp = p.replace('\\', '')
-            rep_map = {'theta': 'θ', 'pi': 'π', 'int': '∫', 'vec': '→', 'sqrt': '√', 'times': '×', 'circ': '°'}
-            for k, v in rep_map.items():
-                cp = cp.replace(k, v)
+            # カッコの外（日本語の指示文や解説）
+            # ここで日本語をフィルタリングしてはいけない（「？」の置換のみ行う）
+            clean_jp = p.replace('\u3000', ' ').replace('\xa0', ' ')
+            processed_parts.append(clean_jp)
             
-            # 数字を数式フォント化
-            cp = re.sub(r'\b\d+(\.\d+)?\b', r' $\0$ ', cp)
-            final_output.append(cp)
-            
-    return "".join(final_output)
+    return "".join(processed_parts)
 
 # ==========================================
 # 3. アプリロジック
@@ -136,7 +120,9 @@ row = st.session_state.df.iloc[st.session_state.idx % len(st.session_state.df)]
 # ==========================================
 if subject != "システム英単語":
     st.markdown(f'<div class="card blue-card">【{row.get("category", "問題")}】</div>', unsafe_allow_html=True)
-    st.latex(rf"\displaystyle {total_math_cleaner(row['question'], is_block=True)}")
+    
+    # 問題文：日本語と数式を適切に混ぜて表示
+    st.markdown(f"#### {elegant_render(row['question'], is_question=True)}", unsafe_allow_html=True)
 
     if not st.session_state.answered:
         if st.button("解法・定石を確認する"):
@@ -145,8 +131,12 @@ if subject != "システム英単語":
     else:
         st.markdown("---")
         st.info(f"💡 **攻略の定石**\n\n{elegant_render(row['strategy'])}")
-        st.latex(rf"\displaystyle {total_math_cleaner(row['answer'], is_block=True)}")
+        
+        st.markdown("##### 【解答】")
+        st.markdown(f"#### {elegant_render(row['answer'], is_question=True)}", unsafe_allow_html=True)
+        
         if "explanation" in row and pd.notna(row["explanation"]):
             st.success(f"📝 **ポイント解説**\n\n{elegant_render(row['explanation'])}")
+        
         if st.button("次の問題へ"):
             st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
