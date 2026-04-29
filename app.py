@@ -37,64 +37,64 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. ロジック関数 (再安定化版)
+# 2. ロジック関数 (組合せ表示・改行修正版)
 # ==========================================
 def clean_math(text):
-    """数式生データをLaTeX形式へ徹底変換"""
+    """数式生データをLaTeX形式へ。nCr記法もサポート"""
     if not text or pd.isna(text): return ""
     text = str(text)
-    # LaTeXコマンドの重複・不要タグを除去
+    
+    # 制御文字のクリーンアップ
     text = text.replace(r'\displaystyle', '').replace(r'\\', '\\')
     text = text.replace(r'\(', '').replace(r'\)', '').replace(r'\[', '').replace(r'\]', '').replace('$', '')
+    
+    # 【追加】組合せ記法 _{n}C_{r} や nCr を {}_{n}C_{r} 形式に統一
+    text = re.sub(r'(\d+)?_?\{?([nN])\}?C_?\{?([rR\d]+)\}?', r'{}_{\2}C_{\3}', text)
+    # 数字直接の nCr (例: 3C1 -> {}_{3}C_{1})
+    text = re.sub(r'\b(\d+)C(\d+)\b', r'{}_{\1}C_{\2}', text)
+
     # 累乗: ^2 -> ^{2}
     text = re.sub(r'\^([0-9a-zA-Z\(\)\{\}\-]+)', r'^{\1}', text)
+    
     # 基本関数
     funcs = ['sin', 'cos', 'tan', 'log', 'ln', 'exp', 'theta', 'pi', 'sqrt']
     for f in funcs:
         text = re.sub(rf'(?<!\\)\b{f}\b', rf'\\{f}', text)
+        
     return text.strip()
 
 def render_mixed_content(text, is_strategy=False):
-    """
-    文章と数式を判別してレンダリング。
-    文章中の文字(i, y等)がバックスラッシュ付きで表示されるのを防ぐ。
-    """
-    if not text or pd.isna(text): return
-    raw_text = str(text).replace('\\n', '\n').replace('📝', '').strip()
+    """テキストと数式のハイブリッドレンダリング"""
+    if not text or pd.isna(text): return ""
     
-    # 行ごとに処理
+    # アイコンと改行の正規化
+    raw_text = str(text).replace('\\n', '\n').replace('📝', '').strip()
     lines = raw_text.split('\n')
+    
+    output_md = []
     for line in lines:
         line = line.strip()
         if not line: continue
             
-        # その行全体が1つの数式 ( ... ) の場合
-        if re.fullmatch(r'\(.*?\)[。、.,]?', line):
-            formula_match = re.search(r'\((.*?)\)', line)
-            if formula_match:
-                f_val = formula_match.group(1)
-                suffix = line.replace(f"({f_val})", "").strip()
-                # 独立行として大きく表示
-                st.latex(rf"\displaystyle {clean_math(f_val)} \text{{{suffix}}}")
-        else:
-            # 文章中に数式 ( ... ) が混在している場合
-            parts = re.split(r'(\(.*?\))', line)
-            md_text = ""
-            for part in parts:
-                if part.startswith('(') and part.endswith(')'):
-                    inner = part[1:-1].strip()
-                    # インライン数式として結合
-                    md_text += f" ${clean_math(inner)}$ "
-                else:
-                    # 地の文のバックスラッシュを物理除去
-                    md_text += part.replace('\\', '').replace('displaystyle', '')
-            
-            # 定石エリア(st.info内)か解説エリアかで出し分け
-            if is_strategy:
-                # 定石の中では1つのブロックとして扱うため、ここではテキストのみを一旦返す
-                return md_text
+        # 文章と数式 ( ... ) の分割
+        parts = re.split(r'(\(.*?\))', line)
+        line_md = ""
+        for part in parts:
+            if part.startswith('(') and part.endswith(')'):
+                inner = part[1:-1].strip()
+                line_md += f" ${clean_math(inner)}$ "
             else:
-                st.markdown(md_text)
+                # バックスラッシュを文字として出さない
+                line_md += part.replace('\\', '')
+        
+        output_md.append(line_md)
+    
+    final_md = "\n\n".join(output_md)
+    
+    if is_strategy:
+        return final_md
+    else:
+        st.markdown(final_md)
 
 @st.cache_data
 def load_data(subject):
@@ -105,17 +105,17 @@ def load_data(subject):
     }
     file_path = file_map.get(subject)
     if not file_path: return pd.DataFrame()
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    full_path = os.path.join(current_dir, file_path)
     try:
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        full_path = os.path.join(current_dir, file_path)
         df = pd.read_csv(full_path, encoding="utf-8-sig")
         df.columns = df.columns.str.strip()
         return df
-    except Exception as e:
+    except:
         return pd.DataFrame()
 
 # ==========================================
-# 3. アプリケーション本体
+# 3. アプリ本体
 # ==========================================
 st.markdown('<div class="header-container"><div class="main-title">理系には、勝ち方がある</div></div>', unsafe_allow_html=True)
 
@@ -128,7 +128,6 @@ if sub == "選択してください":
 df_raw = load_data(sub)
 if df_raw.empty: st.stop()
 
-# フィルタリング (仕様通り)
 if sub == "システム英単語":
     lv_map = {"すべて": "All", "Fundamental (1-600)": "Fundamental", "Essential (601-1200)": "Essential", "Advanced (1201-1700)": "Advanced", "Final (1701-2027)": "Final"}
     filter_label = st.sidebar.radio("レベル選択", list(lv_map.keys()))
@@ -157,10 +156,10 @@ row = st.session_state.df.iloc[st.session_state.idx % len(st.session_state.df)]
 # 4. メイン画面
 # ==========================================
 if sub == "システム英単語":
+    # 英語モード (省略 - 仕様通り)
     word = str(row["question"])
     sentence = re.sub(re.escape(word), f"<span class='highlight'>{word}</span>", str(row["sentence"]), flags=re.IGNORECASE)
     st.markdown(f'<div class="card orange-card">{sentence}</div>', unsafe_allow_html=True)
-    
     if "choices" not in st.session_state:
         ans_list = [x.strip() for x in re.split(r'[,、;]', str(row["all_answers"])) if x.strip()]
         correct = ans_list[0]
@@ -168,27 +167,21 @@ if sub == "システム英単語":
         choices = random.sample([correct] + random.sample(dummy_pool, 3), 4)
         random.shuffle(choices)
         st.session_state.choices, st.session_state.correct = choices, correct
-
     cols = st.columns(2)
     for i, choice in enumerate(st.session_state.choices):
         with (cols[0] if i % 2 == 0 else cols[1]):
             if st.button(choice, key=f"btn_{i}", disabled=st.session_state.answered):
                 st.session_state.selected, st.session_state.answered = choice, True
                 st.rerun()
-
     if st.session_state.answered:
         if st.session_state.selected == st.session_state.correct: st.success("Correct!")
         else: st.error(f"Incorrect... 正解：{st.session_state.correct}")
         st.write(f"**意味:** {row['all_answers']}")
         if st.button("次の問題へ"):
-            st.session_state.idx += 1
-            st.session_state.answered = False
-            del st.session_state["choices"]
-            st.rerun()
+            st.session_state.idx += 1; st.session_state.answered = False; del st.session_state["choices"]; st.rerun()
 else:
     # 数学モード
     st.markdown(f'<div class="card blue-card">【{row["category"]}】</div>', unsafe_allow_html=True)
-    # 【修正】問題文の式を latex で表示
     st.latex(rf"\displaystyle {clean_math(row['question'])}")
 
     if not st.session_state.answered:
@@ -198,10 +191,11 @@ else:
     else:
         st.markdown("---")
         st.markdown("##### 💡 攻略の定石")
-        # 定石部分も数式に対応
-        st.info(render_mixed_content(row["strategy"], is_strategy=True) or row["strategy"])
+        # st.info内で綺麗にレンダリング
+        st.info(render_mixed_content(row["strategy"], is_strategy=True))
         
         st.markdown("##### 【解答】")
+        # 重複表示を防ぐため一回のみレンダリング
         st.latex(rf"\displaystyle {clean_math(row['answer'])}")
 
         if "explanation" in row and pd.notna(row["explanation"]):
