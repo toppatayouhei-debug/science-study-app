@@ -25,54 +25,51 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. 徹底安全・置換エンジン（最終安定版）
+# 2. 徹底クリーンアップ数式エンジン
 # ==========================================
 def total_math_cleaner(text, is_block=False):
     if not text or pd.isna(text): return ""
-    # バックスラッシュとdisplaystyleを一旦リセット
-    t = str(text).replace('\\', '').replace('displaystyle', '').replace('$', '')
+    
+    # 1. 謎の文字（特殊スペースやエスケープ）を物理的に排除
+    t = str(text).replace('\\ ', ' ').replace('\\', '').replace('displaystyle', '').replace('$', '')
+    # 文字化けの原因となる特殊な空白文字を置換
+    t = t.replace('\u3000', ' ').replace('\xa0', ' ')
 
-    # --- A. 記号の単純一括置換（エラー回避のため最優先） ---
-    # 置換順序を調整し、二重変換を防ぐ
+    # 2. 基本記号の置換（dx, dt を独立させてバックスラッシュを付与）
     t = t.replace('int', r'\int ')
     t = t.replace('vec', r'\vec ')
     t = t.replace('sqrt', r'\sqrt ')
     t = t.replace('times', r'\times ')
-    t = t.replace('cdot', r'\cdot ')
     t = t.replace('dots', r'\dots ')
     t = t.replace('infty', r'\infty ')
-    
-    # 度数記号の二重上付き (^circ) を防止
-    t = t.replace('^circ', r'^{\circ}')
     t = t.replace('circ', r'^{\circ}')
 
-    # --- B. 構造修正（肩と分数の最小限の処理） ---
-    # 指数（肩）を {} で保護
-    t = re.sub(r'\^([0-9a-zA-Z\+ \-]+)', r'^{\1}', t)
+    # 3. 指数 (肩) の保護：+ や - が来たらそこで {} を閉じる
+    # x^3+C -> x^{3}+C
+    t = re.sub(r'\^([0-9a-zA-Z]+)', r'^{\1}', t)
     
-    # 組合せ
-    t = re.sub(r'([nN\d]+)?C([rR\d]+)', r'{}_{\1}C_{\2}', t)
+    # 4. 積分定数や演算子の周りに適切なスペース
+    t = t.replace('+C', ' + C').replace('-C', ' - C')
 
-    # 分数（独立行用）
+    # 5. 分数（独立行用）
     if is_block:
         t = re.sub(r'(\d+)\s*/\s*(\d+)', r'\\frac{\1}{\2}', t)
 
-    # --- C. 数学関数（バックスラッシュ付与） ---
-    funcs = ['sin', 'cos', 'tan', 'log', 'ln', 'exp', 'theta', 'pi', 'alpha', 'beta', 'gamma', 'dx', 'dt']
+    # 6. 数学関数と微小要素 (dx, dt)
+    funcs = ['sin', 'cos', 'tan', 'log', 'ln', 'exp', 'theta', 'pi', 'dx', 'dt']
     for f in funcs:
-        # すでに付与されている場合を除外して置換
-        t = re.sub(rf'(?<!\\)\b{f}\b', rf'\\{f}', t)
+        t = re.sub(rf'\b{f}\b', rf'\\{f}', t)
     
-    # 虚数単位 i (文末や数字の後の i を数式化)
+    # 7. 虚数単位
     t = re.sub(r'(\d+|\b)i\b', r'\1 i ', t)
 
     return t.strip()
 
 def elegant_render(text):
     if not text or pd.isna(text): return ""
+    # 改行や特殊文字の整理
     raw = str(text).replace('\\n', '\n').replace('📝', '').strip()
     
-    # カッコ分割パース
     parts = re.split(r'(\(.*?\))', raw)
     final_output = []
     
@@ -81,16 +78,9 @@ def elegant_render(text):
             inner = p[1:-1].strip()
             final_output.append(f" ${total_math_cleaner(inner)}$ ")
         else:
-            # 地文：バックスラッシュを消しつつ、記号を日本語フォントで見やすく
-            cp = p.replace('\\', '')
-            replace_map = {
-                'int': '∫', 'vec': '→', 'sqrt': '√', 
-                'times': '×', 'dots': '…', 'circ': '°', 'infty': '∞'
-            }
-            for k, v in replace_map.items():
-                cp = cp.replace(k, v)
-            
-            # 数字をすべて数式フォント ($ $) に
+            # 地文：sqrt, int などを記号化しつつ、謎のバックスラッシュを消去
+            cp = p.replace('\\', '').replace('int', '∫').replace('sqrt', '√').replace('times', '×').replace('circ', '°')
+            # 数字を数式フォント化
             cp = re.sub(r'\b\d+(\.\d+)?\b', r' $\0$ ', cp)
             final_output.append(cp)
             
@@ -115,7 +105,7 @@ st.title("理系には、勝ち方がある")
 subject = st.sidebar.selectbox("科目を選択", ["選択してください", "システム英単語", "入試数学の定石（数Ⅲ）", "入試数学の定石（ⅠAⅡB C）"])
 
 if subject == "選択してください":
-    st.info("サイドバーから科目を選択して開始してください。")
+    st.info("サイドバーから科目を選択してください。")
     st.stop()
 
 df_raw = load_data(subject)
@@ -138,7 +128,8 @@ row = st.session_state.df.iloc[st.session_state.idx % len(st.session_state.df)]
 # ==========================================
 if subject != "システム英単語":
     st.markdown(f'<div class="card blue-card">【{row.get("category", "問題")}】</div>', unsafe_allow_html=True)
-    # 問題文のレンダリング
+    
+    # 積分記号などの表示
     st.latex(rf"\displaystyle {total_math_cleaner(row['question'], is_block=True)}")
 
     if not st.session_state.answered:
@@ -148,13 +139,12 @@ if subject != "システム英単語":
     else:
         st.markdown("---")
         st.info(f"💡 **攻略の定石**\n\n{elegant_render(row['strategy'])}")
+        
+        # 解答：ここで C が肩に乗らないよう total_math_cleaner が処理
         st.latex(rf"\displaystyle {total_math_cleaner(row['answer'], is_block=True)}")
+        
         if "explanation" in row and pd.notna(row["explanation"]):
             st.success(f"📝 **ポイント解説**\n\n{elegant_render(row['explanation'])}")
+        
         if st.button("次の問題へ"):
             st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
-else:
-    # 英語モード
-    st.write(f"### {row['sentence']}")
-    if st.button("正解を表示"): st.success(row['all_answers'])
-    if st.button("次へ"): st.session_state.idx += 1; st.rerun()
