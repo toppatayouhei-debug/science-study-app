@@ -24,28 +24,24 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. 徹底クリーンアップエンジン（最終・ theta & 「？」抹殺版）
+# 2. 徹底クリーンアップエンジン（安全第一・置換版）
 # ==========================================
 def total_math_cleaner(text, is_block=False):
     if not text or pd.isna(text): return ""
     
-    t = str(text)
-    # 1. 物理的なゴミ・特殊文字を極限まで抹消
-    t = t.replace('\u3000', ' ').replace('\xa0', ' ').replace('\x00', ' ').replace('\ufeff', '')
-    t = t.replace('\\ ', ' ').replace('\\', '').replace('displaystyle', '').replace('$', '')
+    # 物理的なゴミ・特殊文字を削除
+    t = str(text).replace('\u3000', ' ').replace('\xa0', ' ').replace('\x00', ' ')
+    t = t.replace('\\', '').replace('displaystyle', '').replace('$', '')
 
-    # 2. ギリシャ文字・数学関数の置換（ここを最優先に）
-    # theta, pi 等を確実に \theta, \pi へ
-    greek_and_funcs = {
-        'theta': r'\theta', 'pi': r'\pi', 'alpha': r'\alpha', 'beta': r'\beta', 
-        'gamma': r'\gamma', 'sin': r'\sin', 'cos': r'\cos', 'tan': r'\tan', 
-        'log': r'\log', 'ln': r'\ln', 'exp': r'\exp'
-    }
-    for k, v in greek_and_funcs.items():
-        # 単語の境界を意識しつつ置換
-        t = re.sub(rf'\b{k}\b', v, t)
-
-    # 3. 記号・演算子の変換
+    # --- A. 文字列置換（replace なら PatternError は起きない） ---
+    # ギリシャ文字・数学関数
+    t = t.replace('theta', r'\theta ')
+    t = t.replace('pi', r'\pi ')
+    t = t.replace('sin', r'\sin ')
+    t = t.replace('cos', r'\cos ')
+    t = t.replace('tan', r'\tan ')
+    
+    # 記号・演算子
     t = t.replace('dx', r'\,dx').replace('dt', r'\,dt')
     t = t.replace('int', r'\int ')
     t = t.replace('vec', r'\vec ')
@@ -55,26 +51,27 @@ def total_math_cleaner(text, is_block=False):
     t = t.replace('infty', r'\infty ')
     t = t.replace('circ', r'^{\circ}')
 
-    # 4. 構造修正 (指数・積分定数)
+    # --- B. 構造の微調整（最小限の正規表現） ---
+    # 指数（肩）
     t = re.sub(r'\^([0-9a-zA-Z]+)', r'^{\1}', t)
+    # 積分定数周りの整形
     t = t.replace('+C', ' + C').replace('-C', ' - C')
 
-    # 5. 分数（ブロック表示用）
+    # 分数（独立表示時のみ）
     if is_block:
         t = re.sub(r'(\d+)\s*/\s*(\d+)', r'\\frac{\1}{\2}', t)
 
-    # 6. 虚数単位
-    t = re.sub(r'(\d+|\b)i\b', r'\1 i ', t)
+    # 虚数単位
+    t = t.replace(' i ', r' i ').replace('i ', r' i ')
 
-    # 7. 「？」の原因となる非アスキー文字を物理的に完全消去
-    # LaTeXで許容される文字記号のみを通過させる（ASCII: 32-126）
+    # --- C. 「？」抹殺フィルタ ---
+    # ASCII文字と基本構造記号のみを許可
     t = "".join(char for char in t if 32 <= ord(char) <= 126 or char in '^{}_\\')
     
     return t.strip()
 
 def elegant_render(text):
     if not text or pd.isna(text): return ""
-    # 特殊なゴミをここでも掃除
     raw = str(text).replace('\u3000', ' ').replace('\xa0', ' ').replace('\\n', '\n').replace('📝', '').strip()
     
     parts = re.split(r'(\(.*?\))', raw)
@@ -85,13 +82,10 @@ def elegant_render(text):
             inner = p[1:-1].strip()
             final_output.append(f" ${total_math_cleaner(inner)}$ ")
         else:
-            # 地文：バックスラッシュを消し、主要記号を置換
+            # 地文：バックスラッシュを消し、記号を日本語フォントに
             cp = p.replace('\\', '')
-            replace_map = {
-                'theta': 'θ', 'pi': 'π', 'int': '∫', 'vec': '→', 
-                'sqrt': '√', 'times': '×', 'dots': '…', 'circ': '°'
-            }
-            for k, v in replace_map.items():
+            rep_map = {'theta': 'θ', 'pi': 'π', 'int': '∫', 'vec': '→', 'sqrt': '√', 'times': '×', 'circ': '°'}
+            for k, v in rep_map.items():
                 cp = cp.replace(k, v)
             
             # 数字を数式フォント化
@@ -119,7 +113,7 @@ st.title("理系には、勝ち方がある")
 subject = st.sidebar.selectbox("科目を選択", ["選択してください", "システム英単語", "入試数学の定石（数Ⅲ）", "入試数学の定石（ⅠAⅡB C）"])
 
 if subject == "選択してください":
-    st.info("サイドバーから科目を選択してください。")
+    st.info("左のメニューから開始してください。")
     st.stop()
 
 df_raw = load_data(subject)
@@ -142,7 +136,6 @@ row = st.session_state.df.iloc[st.session_state.idx % len(st.session_state.df)]
 # ==========================================
 if subject != "システム英単語":
     st.markdown(f'<div class="card blue-card">【{row.get("category", "問題")}】</div>', unsafe_allow_html=True)
-    # 問題文のレンダリング
     st.latex(rf"\displaystyle {total_math_cleaner(row['question'], is_block=True)}")
 
     if not st.session_state.answered:
