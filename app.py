@@ -24,45 +24,54 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. 徹底安定化エンジン
+# 2. 究極安定・単一行レンダリングエンジン
 # ==========================================
-def clean_math_only(text):
-    """数式パーツ（カッコの中身）からノイズを除去して純粋なLaTeXにする"""
+def total_math_cleaner(text):
+    """数式パーツ（カッコの中身）をLaTeX命令へ安全に変換"""
     if not text: return ""
+    # 不要な記号を物理削除
     t = str(text).replace('\\', '').replace('displaystyle', '').replace('$', '')
     
-    # 記号置換
+    # 記号置換（replaceだけで安全に）
     t = t.replace('theta', r'\theta ').replace('pi', r'\pi ')
     t = t.replace('sin', r'\sin ').replace('cos', r'\cos ').replace('tan', r'\tan ')
     t = t.replace('int', r'\int ').replace('vec', r'\vec ').replace('sqrt', r'\sqrt ')
     t = t.replace('times', r'\times ').replace('dots', r'\dots ').replace('infty', r'\infty ')
     t = t.replace('circ', r'^{\circ}').replace('dx', r'\,dx').replace('dt', r'\,dt')
     
-    # 指数
-    t = re.sub(r'\^([0-9a-zA-Z]+)', r'^{\1}', t)
+    # 指数（肩）
+    t = re.sub(r'\^([0-9a-zA-Z]+)', r'^{ \1 }', t)
     
-    # LaTeXで許容される文字のみ残す（ASCII: 32-126）
+    # ASCII以外のノイズ（？）を徹底除去
     t = "".join(char for char in t if 32 <= ord(char) <= 126 or char in '^{}_\\')
     return t.strip()
 
-def split_and_render(text, container_type="info"):
-    """文章と数式を分離してレンダリングする"""
-    if not text or pd.isna(text): return
+def unified_render(text, is_main=False):
+    """日本語と数式を分離せず、一つの文字列としてStreamlitに渡す"""
+    if not text or pd.isna(text): return ""
     
-    # 特殊な空白文字（文字化けの元）を削除
     raw = str(text).replace('\u3000', ' ').replace('\xa0', ' ').replace('\\n', '\n').strip()
     
-    # カッコ ( ) で分割
-    parts = re.split(r'(\(.*?\))', raw)
+    # カッコ ( ) で分割して中身だけを LaTeX 化
+    def replace_with_math(match):
+        inner = match.group(1).strip()
+        cleaned = total_math_cleaner(inner)
+        # メインの問題/解答なら少し大きく表示（displaystyle）
+        style = r"\displaystyle " if is_main else ""
+        return f"$ {style}{cleaned} $"
+
+    # ( ) の中身を数式に置換
+    processed_text = re.sub(r'\((.*?)\)', replace_with_math, raw)
     
-    for p in parts:
-        if p.startswith('(') and p.endswith(')'):
-            # 数式パートは latex で表示
-            st.latex(rf"\displaystyle {clean_math_only(p[1:-1])}")
-        elif p.strip():
-            # 地文は markdown で表示（数字を $ $ で囲む）
-            txt = re.sub(r'\b\d+(\.\d+)?\b', r'$\0$', p)
-            st.write(txt)
+    # 文中の独立した数字も数式フォントに（オプション）
+    processed_text = re.sub(r'(?<![0-9$])\b(\d+)\b(?![0-9$])', r'$ \1 $', processed_text)
+    
+    # 先頭にバックスラッシュが残る問題を物理的に防ぐ
+    if processed_text.startswith('\\'):
+        processed_parts = processed_text.split('\\', 1)
+        processed_text = processed_parts[1] if len(processed_parts) > 1 else processed_parts[0]
+
+    return processed_text
 
 # ==========================================
 # 3. アプリロジック
@@ -102,13 +111,13 @@ if st.session_state.df.empty: st.stop()
 row = st.session_state.df.iloc[st.session_state.idx % len(st.session_state.df)]
 
 # ==========================================
-# 4. メイン表示
+# 4. 表示
 # ==========================================
 if subject != "システム英単語":
     st.markdown(f'<div class="card blue-card">【{row.get("category", "問題")}】</div>', unsafe_allow_html=True)
     
-    # 問題の表示
-    split_and_render(row['question'])
+    # 問題：markdown で一行として表示
+    st.markdown(f"#### {unified_render(row['question'], is_main=True)}")
 
     if not st.session_state.answered:
         if st.button("解法・定石を確認する"):
@@ -116,15 +125,13 @@ if subject != "システム英単語":
             st.rerun()
     else:
         st.markdown("---")
-        with st.expander("💡 攻略の定石", expanded=True):
-            split_and_render(row['strategy'])
+        st.info(f"💡 **攻略の定石**\n\n{unified_render(row['strategy'])}")
         
         st.markdown("##### 【解答】")
-        split_and_render(row['answer'])
+        st.markdown(unified_render(row['answer'], is_main=True))
         
         if "explanation" in row and pd.notna(row["explanation"]):
-            with st.expander("📝 ポイント解説", expanded=False):
-                split_and_render(row['explanation'])
+            st.success(f"📝 **ポイント解説**\n\n{unified_render(row['explanation'])}")
         
         if st.button("次の問題へ"):
             st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
