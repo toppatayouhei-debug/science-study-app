@@ -25,47 +25,57 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. 数式処理エンジン：究極版
+# 2. 徹底書き換え：数学シンボル・ハンター
 # ==========================================
 def total_math_cleaner(text, is_block=False):
     if not text or pd.isna(text): return ""
-    t = str(text).replace('\\', '').replace('displaystyle', '')
+    t = str(text).replace('\\', '').replace('displaystyle', '').replace('$', '')
 
-    # 1. 数列の三点リーダー (dots) を LaTeX 形式へ
-    t = t.replace('dots', r'\dots')
-
-    # 2. 平方根 (sqrt)
-    t = re.sub(r'sqrt\s*\((.*?)\)', r'\\sqrt{\1}', t)
+    # --- 強制変換フェーズ（単語の境界を無視して一掃） ---
+    # 1. ベクトル (vecOA -> \vec{OA})
+    t = re.sub(r'vec\s*([a-zA-Z]{1,2})', r'\\vec{\1}', t)
+    
+    # 2. 平方根 (sqrt3 -> \sqrt{3}, sqrt(3) -> \sqrt{3})
+    t = re.sub(r'sqrt\s*\(?(.*?)\)?(?=[^0-9a-zA-Z()]|$)', r'\\sqrt{\1}', t)
+    # カッコなしの単純なケースもカバー
     t = re.sub(r'sqrt\s*([0-9a-zA-Z]+)', r'\\sqrt{\1}', t)
     
-    # 3. 指数 (肩)
+    # 3. 掛け算・点・三点リーダー
+    t = t.replace('times', r' \times ')
+    t = t.replace('cdot', r' \cdot ')
+    t = t.replace('dots', r' \dots ')
+    t = t.replace('circ', r'^{\circ}')
+    
+    # --- 構造整理フェーズ ---
+    # 4. 指数 (肩)
     t = re.sub(r'\^([0-9a-zA-Z\+ \-]+)', lambda m: f"^{{{m.group(1).split('+')[0].split('-')[0].split('=')[0].strip()}}}{m.group(1)[len(m.group(1).split('+')[0].split('-')[0].split('=')[0].strip()):]}", t)
 
-    # 4. 組合せ・度数
-    t = t.replace('circ', r'^{\circ}')
+    # 5. 組合せ (nCr)
     t = re.sub(r'([nN\d]+)?C([rR\d]+)', r'{}_{\1}C_{\2}', t)
 
-    # 5. 分数
+    # 6. 分数
     if is_block:
         t = re.sub(r'(\d+)\s*/\s*(\d+)', r'\\frac{\1}{\2}', t)
 
-    # 6. 数学関数
-    funcs = ['sin', 'cos', 'tan', 'log', 'ln', 'exp', 'theta', 'pi', 'alpha', 'beta', 'gamma', 'i']
+    # 7. 数学関数・ギリシャ文字（これらは単語単位で置換）
+    funcs = ['sin', 'cos', 'tan', 'log', 'ln', 'exp', 'theta', 'pi', 'alpha', 'beta', 'gamma']
     for f in funcs:
-        t = re.sub(rf'\b{f}\b', rf'\\{f}', t)
+        t = re.sub(rf'(?<!\\)\b{f}\b', rf'\\{f}', t)
     
+    # 8. 虚数単位・変数 i
+    t = re.sub(r'(\d+|\b)i\b', r'\1 i ', t)
+
     return t.strip()
 
 def elegant_render(text):
     if not text or pd.isna(text): return ""
     raw = str(text).replace('\\n', '\n').replace('📝', '').strip()
     
-    # 文章中の数字（整数・小数・分数形式）をすべて数式フォント ($ $) に変換
-    # 例: 123 -> $123$, 0.5 -> $0.5$
+    # 数字を数式フォントにする
     def digit_replacer(match):
         return f" ${match.group(0)}$ "
     
-    # まずカッコ内の数式を処理
+    # カッコ分割パース
     parts = re.split(r'(\(.*?\))', raw)
     final_output = []
     
@@ -74,12 +84,11 @@ def elegant_render(text):
             inner = p[1:-1].strip()
             final_output.append(f" ${total_math_cleaner(inner)}$ ")
         else:
-            # カッコの外側：
-            # 1. 不要な文字の置換
-            clean_p = p.replace('\\', '').replace('dots', '…').replace('circ', '°').replace('sqrt', '√')
-            # 2. 数字をすべて数式フォント化
-            clean_p = re.sub(r'\b\d+(\.\d+)?\b', digit_replacer, clean_p)
-            final_output.append(clean_p)
+            # 地文：キーワードを記号に置換
+            cp = p.replace('\\', '').replace('vec', '→').replace('times', '×').replace('sqrt', '√').replace('dots', '…').replace('circ', '°')
+            # 数字の数式化
+            cp = re.sub(r'\b\d+(\.\d+)?\b', digit_replacer, cp)
+            final_output.append(cp)
             
     return "".join(final_output)
 
@@ -102,18 +111,16 @@ st.title("理系には、勝ち方がある")
 subject = st.sidebar.selectbox("科目を選択", ["選択してください", "システム英単語", "入試数学の定石（数Ⅲ）", "入試数学の定石（ⅠAⅡB C）"])
 
 if subject == "選択してください":
-    st.info("サイドバーから科目を選択して開始してください。")
+    st.info("サイドバーから科目を選択してください。")
     st.stop()
 
 df_raw = load_data(subject)
 
-if subject == "システム英単語":
-    choice = st.sidebar.radio("レベル", ["すべて"] + list(df_raw["level"].unique()))
-    df_filtered = df_raw if choice == "すべて" else df_raw[df_raw["level"] == choice]
-else:
-    choice = st.sidebar.radio("分野", ["すべて"] + list(df_raw["category"].unique()))
-    df_filtered = df_raw if choice == "すべて" else df_raw[df_raw["category"] == choice]
+# 分野選択
+choice = st.sidebar.radio("分野・レベル選択", ["すべて"] + list(df_raw["category"].unique() if "category" in df_raw.columns else df_raw["level"].unique()))
+df_filtered = df_raw if choice == "すべて" else df_raw[(df_raw.get("category") == choice) | (df_raw.get("level") == choice)]
 
+# セッション管理
 current_key = f"{subject}_{choice}"
 if "session_key" not in st.session_state or st.session_state.session_key != current_key:
     st.session_state.session_key = current_key
@@ -125,27 +132,31 @@ if st.session_state.df.empty: st.stop()
 row = st.session_state.df.iloc[st.session_state.idx % len(st.session_state.df)]
 
 # ==========================================
-# 4. メイン表示
+# 4. 表示
 # ==========================================
 if subject != "システム英単語":
-    st.markdown(f'<div class="card blue-card">【{row["category"]}】</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="card blue-card">【{row.get("category", "問題")}】</div>', unsafe_allow_html=True)
     st.latex(rf"\displaystyle {total_math_cleaner(row['question'], is_block=True)}")
 
     if not st.session_state.answered:
-        if st.button("解法を確認する"):
+        if st.button("解法・定石を確認する"):
             st.session_state.answered = True
             st.rerun()
     else:
         st.markdown("---")
         st.info(f"💡 **攻略の定石**\n\n{elegant_render(row['strategy'])}")
-        
-        st.markdown("##### 【解答】")
         st.latex(rf"\displaystyle {total_math_cleaner(row['answer'], is_block=True)}")
-
         if "explanation" in row and pd.notna(row["explanation"]):
             st.success(f"📝 **ポイント解説**\n\n{elegant_render(row['explanation'])}")
-
+        if st.button("次の問題へ"):
+            st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
+else:
+    # 英語モード
+    st.markdown(f"### {row['sentence'].replace(row['question'], f'**{row[u'question']}**')}")
+    if not st.session_state.answered:
+        if st.button("答えを見る"):
+            st.session_state.answered = True; st.rerun()
+    else:
+        st.success(f"正解: {row['all_answers']}")
         if st.button("次へ"):
-            st.session_state.idx += 1
-            st.session_state.answered = False
-            st.rerun()
+            st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
