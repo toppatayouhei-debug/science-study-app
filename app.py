@@ -19,13 +19,20 @@ st.markdown("""
 .header-container { text-align: center; margin-bottom: 25px; }
 .main-title { color: #1e3a8a; font-size: 2.2rem; font-weight: 800; }
 .card {
-    background-color: white !important; padding: 20px !important;
-    border-radius: 12px !important; box-shadow: 0 4px 10px rgba(0,0,0,0.08) !important;
+    background-color: white !important;
+    padding: 20px !important;
+    border-radius: 12px !important;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.08) !important;
 }
 .highlight { color: #ff9800 !important; font-weight: bold !important; }
 .orange-card { border-left: 8px solid #ff9800 !important; }
 .blue-card   { border-left: 8px solid #2196f3 !important; }
-.stButton button { width: 100%; border-radius: 10px; font-weight: bold; min-height: 45px; }
+.stButton button {
+    width: 100%;
+    border-radius: 10px;
+    font-weight: bold;
+    min-height: 45px;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -33,29 +40,46 @@ st.markdown("""
 # 2. 便利関数
 # ==========================================
 def clean_math(text):
-    """数式タグを整理し、st.latex用に調整"""
+    """数式タグを整理し、LaTeX化"""
     text = str(text)
 
-    # 数式囲み除去
     text = text.replace(r'\(', '').replace(r'\)', '')
     text = text.replace(r'\[', '').replace(r'\]', '')
     text = text.replace('$', '')
 
-    # ^2 → ^{2}
+    # x^2 → x^{2}
     text = re.sub(r'\^([0-9a-zA-Z]+)', r'^{\1}', text)
 
     # sqrt(x) → \sqrt{x}
     text = re.sub(r'sqrt\((.*?)\)', r'\\sqrt{\1}', text)
 
-    # sin cos tan log ln exp を LaTeX化
     funcs = ['sin', 'cos', 'tan', 'log', 'ln', 'exp']
     for f in funcs:
         text = re.sub(rf'\b{f}\b', rf'\\{f}', text)
 
-    # 分数 a/b（単純形のみ）
+    # 1/2 → \frac{1}{2}
     text = re.sub(r'(?<!\{)(\d+)\s*/\s*(\d+)', r'\\frac{\1}{\2}', text)
 
     return text.strip()
+
+
+def render_explanation(text):
+    """
+    explanation内の (数式) を検出して数式表示
+    UI変更なし
+    """
+    text = str(text)
+
+    parts = re.split(r'(\(.*?\))', text)
+
+    for part in parts:
+        if re.fullmatch(r'\(.*?\)', part):
+            formula = part[1:-1].strip()
+            st.latex(rf"\displaystyle {clean_math(formula)}")
+        else:
+            if part.strip():
+                st.write(part)
+
 
 @st.cache_data
 def load_data(subject):
@@ -81,7 +105,7 @@ def load_data(subject):
         return pd.DataFrame()
 
 # ==========================================
-# 3. ヘッダー & サイドバー (変更なし)
+# 3. ヘッダー & サイドバー
 # ==========================================
 st.markdown(
     '<div class="header-container"><div class="main-title">理系には、勝ち方がある</div></div>',
@@ -100,7 +124,7 @@ if sub == "選択してください":
     st.stop()
 
 # ==========================================
-# 4. データ準備とフィルタリング
+# 4. データ準備
 # ==========================================
 df_raw = load_data(sub)
 
@@ -144,7 +168,9 @@ if (
     else:
         df_filtered = df_raw[
             df_raw[filter_col].astype(str).str.contains(
-                current_filter_val, case=False, na=False
+                current_filter_val,
+                case=False,
+                na=False
             )
         ]
 
@@ -168,7 +194,7 @@ row = st.session_state.df.iloc[
 ]
 
 # ==========================================
-# 5. 学習メイン画面
+# 5. メイン画面
 # ==========================================
 if sub == "システム英単語":
 
@@ -228,6 +254,7 @@ if sub == "システム英単語":
                 st.rerun()
 
     if st.session_state.answered:
+
         if st.session_state.selected == st.session_state.correct:
             st.success("Correct!")
         else:
@@ -266,7 +293,7 @@ else:
 
         if "explanation" in row and pd.notna(row["explanation"]):
             st.markdown("##### 📝 ポイント解説")
-            st.write(row["explanation"])
+            render_explanation(row["explanation"])
 
         if st.button("次の問題へ"):
             st.session_state.idx += 1
