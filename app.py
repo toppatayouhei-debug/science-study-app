@@ -37,67 +37,66 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. 便利関数 (修正の核)
+# 2. 便利関数 (納品用ブラッシュアップ版)
 # ==========================================
 def clean_math(text):
-    """生データを整理してLaTeX化。特に^2やバックスラッシュの混在を処理"""
+    """数式生データをLaTeXとして成立する形に徹底洗浄"""
     if not text: return ""
     text = str(text)
 
-    # 既に LaTeX タグがある場合は整理
-    text = text.replace(r'\displaystyle', '').replace(r'\\', '\\')
+    # 1. バックスラッシュの二重化やLaTeXコマンドの重複を整理
+    text = text.replace(r'\\', '\\').replace(r'\displaystyle', '')
     text = text.replace(r'\(', '').replace(r'\)', '').replace(r'\[', '').replace(r'\]', '').replace('$', '')
 
-    # 指数: x^2 -> x^{2}
-    text = re.sub(r'\^([0-9a-zA-Z]+)', r'^{\1}', text)
+    # 2. 累乗の整形: x^2 -> x^{2} / x^10 -> x^{10}
+    # すでに括弧がある場合は二重にならないよう考慮
+    text = re.sub(r'\^([^{}\s]+)', r'^{\1}', text)
 
-    # sqrt(x) -> \sqrt{x}
+    # 3. 平方根: sqrt(x) -> \sqrt{x}
     text = re.sub(r'sqrt\((.*?)\)', r'\\sqrt{\1}', text)
 
-    # 関数
+    # 4. 三角関数・対数関数の処理
     funcs = ['sin', 'cos', 'tan', 'log', 'ln', 'exp']
     for f in funcs:
         text = re.sub(rf'\b{f}\b', rf'\\{f}', text)
 
-    # 分数 1/2 -> \frac{1}{2}
+    # 5. 分数の処理: 1/2 -> \frac{1}{2} (前後に数字がある場合のみ)
     text = re.sub(r'(\d+)\s*/\s*(\d+)', r'\\frac{\1}{\2}', text)
 
     return text.strip()
 
 def render_explanation(text):
     """
-    解説文のパース:
-    1. ( ... ) で囲まれた部分は LaTeX 数式として表示。
-    2. 文中に残っている \displaystyle や単体の y などのゴミを掃除。
-    3. 改行を適切に反映。
+    解説文を『テキスト』『数式』『改行』に分解してレンダリング
     """
     if pd.isna(text): return
 
-    text = str(text)
-    # 生データの改行を標準化
-    text = text.replace('\\n', '\n')
+    # CSV由来の生バックスラッシュ文字や改行リテラルを置換
+    text = str(text).replace('\\n', '\n')
     
-    # ( ) で区切ってリスト化
-    parts = re.split(r'(\(.*?\)|\n)', text)
+    # 正規表現で (数式) または 改行 をキャプチャして分割
+    # カンマやスペースを含む (6, 10) 等も確実にキャプチャ
+    parts = re.split(r'(\(.*?\n?.*?\)|\n)', text)
 
     for part in parts:
         if not part: continue
         
         if part == '\n':
-            st.write("") # 物理的な改行を入れる
+            # 意図的な改行を反映
+            st.write("")
         elif part.startswith('(') and part.endswith(')'):
-            # カッコ内の数式を抽出
+            # 数式パート
             formula = part[1:-1].strip()
-            # もし中身が数式ならLatex
             if formula:
-                # 生データの \displaystyle 等を除去して適用
-                clean_f = clean_math(formula)
-                st.latex(rf"\displaystyle {clean_f}")
+                # 数式内の不要なバックスラッシュ等を消してからLatex化
+                f_cleaned = clean_math(formula)
+                st.latex(rf"\displaystyle {f_cleaned}")
         else:
-            # 普通のテキスト部分。残っている \ や LaTeX コマンドを置換
-            clean_text = part.replace(r'\displaystyle', '').replace('\\', '').strip()
-            if clean_text:
-                st.write(clean_text)
+            # テキストパート
+            # 画面に残る生の LaTeX コマンドやバックスラッシュを完全に除去
+            t_cleaned = part.replace('\\', '').replace('displaystyle', '').strip()
+            if t_cleaned:
+                st.write(t_cleaned)
 
 @st.cache_data
 def load_data(subject):
@@ -119,7 +118,7 @@ def load_data(subject):
         return pd.DataFrame()
 
 # ==========================================
-# 3. ヘッダー & サイドバー
+# 3. ヘッダー & サイドバー (変更なし)
 # ==========================================
 st.markdown(
     '<div class="header-container"><div class="main-title">理系には、勝ち方がある</div></div>',
@@ -137,7 +136,7 @@ if sub == "選択してください":
     st.stop()
 
 # ==========================================
-# 4. データ準備
+# 4. データ準備 (変更なし)
 # ==========================================
 df_raw = load_data(sub)
 if df_raw.empty:
@@ -146,10 +145,8 @@ if df_raw.empty:
 
 if sub == "システム英単語":
     lv_map = {
-        "すべて": "All",
-        "Fundamental (1-600)": "Fundamental",
-        "Essential (601-1200)": "Essential",
-        "Advanced (1201-1700)": "Advanced",
+        "すべて": "All", "Fundamental (1-600)": "Fundamental",
+        "Essential (601-1200)": "Essential", "Advanced (1201-1700)": "Advanced",
         "Final (1701-2027)": "Final"
     }
     filter_label = st.sidebar.radio("レベル選択", list(lv_map.keys()))
@@ -170,10 +167,7 @@ if (
 ):
     st.session_state.current_sub = sub
     st.session_state.last_filter = filter_label
-    if filter_label == "すべて":
-        df_filtered = df_raw.copy()
-    else:
-        df_filtered = df_raw[df_raw[filter_col].astype(str).str.contains(current_filter_val, case=False, na=False)]
+    df_filtered = df_raw.copy() if filter_label == "すべて" else df_raw[df_raw[filter_col].astype(str).str.contains(current_filter_val, case=False, na=False)]
     
     if df_filtered.empty:
         st.session_state.df = pd.DataFrame()
@@ -184,7 +178,7 @@ if (
     if "choices" in st.session_state: del st.session_state["choices"]
 
 if st.session_state.df.empty:
-    st.error(f"選択された範囲に該当するデータがありません。")
+    st.error(f"該当するデータがありません。")
     st.stop()
 
 row = st.session_state.df.iloc[st.session_state.idx % len(st.session_state.df)]
@@ -204,22 +198,18 @@ if sub == "システム英単語":
         if len(dummy_pool) < 3: dummy_pool += ["(dummy)"] * (3 - len(dummy_pool))
         choices = random.sample([correct] + random.sample(dummy_pool, 3), 4)
         random.shuffle(choices)
-        st.session_state.choices = choices
-        st.session_state.correct = correct
+        st.session_state.choices, st.session_state.correct = choices, correct
 
     cols = st.columns(2)
     for i, choice in enumerate(st.session_state.choices):
         with (cols[0] if i % 2 == 0 else cols[1]):
             if st.button(choice, key=f"btn_{i}", disabled=st.session_state.answered):
-                st.session_state.selected = choice
-                st.session_state.answered = True
+                st.session_state.selected, st.session_state.answered = choice, True
                 st.rerun()
 
     if st.session_state.answered:
-        if st.session_state.selected == st.session_state.correct:
-            st.success("Correct!")
-        else:
-            st.error(f"Incorrect... 正解：{st.session_state.correct}")
+        if st.session_state.selected == st.session_state.correct: st.success("Correct!")
+        else: st.error(f"Incorrect... 正解：{st.session_state.correct}")
         st.write(f"**意味:** {row['all_answers']}")
         if st.button("次の問題へ"):
             st.session_state.idx += 1
@@ -227,6 +217,7 @@ if sub == "システム英単語":
             del st.session_state["choices"]
             st.rerun()
 else:
+    # 数学モード
     st.markdown(f'<div class="card blue-card">【{row["category"]}】</div>', unsafe_allow_html=True)
     st.latex(rf"\displaystyle {clean_math(row['question'])}")
 
