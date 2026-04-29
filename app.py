@@ -25,62 +25,51 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. 最終決戦：数学表現フルカバーエンジン
+# 2. 徹底安全・置換エンジン (安定性重視)
 # ==========================================
 def total_math_cleaner(text, is_block=False):
     if not text or pd.isna(text): return ""
-    # 物理的なゴミを徹底排除し、バックスラッシュを一度リセット
+    # 一旦バックスラッシュを消去し、綺麗な状態から再構築
     t = str(text).replace('\\', '').replace('displaystyle', '').replace('$', '')
 
-    # --- 1. 積分記号 (int) の徹底処理 ---
-    # int_a^b -> \int_{a}^{b} / int_a -> \int_{a} / int -> \int
-    t = re.sub(r'int_?\{?(.*?)\}?\^\{?(.*?)\}?(\s|[a-zA-Z\(]|$)', r'\\int_{\1}^{\2} \3', t)
-    t = re.sub(r'int_?\{?([0-9a-zA-Z\-\infty]+)\}?', r'\\int_{\1} ', t)
-    t = t.replace('int', r' \int ')
-
-    # --- 2. ベクトル (vec) ---
-    t = re.sub(r'vec\s*([a-zA-Z]{1,2})', r'\\vec{\1}', t)
-    
-    # --- 3. 平方根 (sqrt) ---
-    t = re.sub(r'sqrt\s*\(?(.*?)\)?(?=[^0-9a-zA-Z()]|$)', r'\\sqrt{\1}', t)
-    t = re.sub(r'sqrt\s*([0-9a-zA-Z]+)', r'\\sqrt{\1}', t)
-    
-    # --- 4. 記号類 (times, dots, etc.) ---
-    t = t.replace('times', r' \times ')
-    t = t.replace('cdot', r' \cdot ')
-    t = t.replace('dots', r' \dots ')
+    # --- A. 単純置換（エラーが起きない最も安全な方法） ---
+    t = t.replace('int', r'\int')
+    t = t.replace('vec', r'\vec')
+    t = t.replace('sqrt', r'\sqrt')
+    t = t.replace('times', r'\times')
+    t = t.replace('cdot', r'\cdot')
+    t = t.replace('dots', r'\dots')
     t = t.replace('circ', r'^{\circ}')
-    
-    # --- 5. 指数 (肩) ---
-    t = re.sub(r'\^([0-9a-zA-Z\+ \-]+)', lambda m: f"^{{{m.group(1).split('+')[0].split('-')[0].split('=')[0].strip()}}}{m.group(1)[len(m.group(1).split('+')[0].split('-')[0].split('=')[0].strip()):]}", t)
+    t = t.replace('infty', r'\infty')
 
-    # --- 6. 組合せ (nCr) ---
+    # --- B. 構造修正（正規表現は最小限に） ---
+    # 指数（肩）を {} で保護
+    t = re.sub(r'\^([0-9a-zA-Z\+ \-]+)', r'^{\1}', t)
+    
+    # 組合せ
     t = re.sub(r'([nN\d]+)?C([rR\d]+)', r'{}_{\1}C_{\2}', t)
 
-    # --- 7. 分数 (frac) ---
+    # 分数（問題・解答用）
     if is_block:
-        # 既に frac(a/b) のような形式がある場合に対応
-        t = re.sub(r'frac\((.*?)/(.*?)\)', r'\\frac{\1}{\2}', t)
         t = re.sub(r'(\d+)\s*/\s*(\d+)', r'\\frac{\1}{\2}', t)
 
-    # --- 8. 数学関数（単語として保護） ---
+    # --- C. 数学関数（バックスラッシュ付与） ---
     funcs = ['sin', 'cos', 'tan', 'log', 'ln', 'exp', 'theta', 'pi', 'alpha', 'beta', 'gamma', 'dx', 'dt']
     for f in funcs:
+        # 重複付与を防ぎつつバックスラッシュを付ける
         t = re.sub(rf'(?<!\\)\b{f}\b', rf'\\{f}', t)
     
-    # --- 9. 虚数単位・変数 i ---
+    # 虚数単位 i (文末や数字の後の i を数式化)
     t = re.sub(r'(\d+|\b)i\b', r'\1 i ', t)
 
     return t.strip()
 
 def elegant_render(text):
+    """地の文の数字や記号を整える"""
     if not text or pd.isna(text): return ""
     raw = str(text).replace('\\n', '\n').replace('📝', '').strip()
     
-    def digit_replacer(match):
-        return f" ${match.group(0)}$ "
-    
-    # カッコ分割パース
+    # カッコ分割
     parts = re.split(r'(\(.*?\))', raw)
     final_output = []
     
@@ -89,16 +78,23 @@ def elegant_render(text):
             inner = p[1:-1].strip()
             final_output.append(f" ${total_math_cleaner(inner)}$ ")
         else:
-            # 地文：キーワードを記号に置換
-            cp = p.replace('\\', '').replace('int', '∫').replace('vec', '→').replace('times', '×').replace('sqrt', '√').replace('dots', '…').replace('circ', '°')
-            # 数字の数式化（ただし、すでに $ で囲まれている部分は避ける）
-            cp = re.sub(r'\b\d+(\.\d+)?\b', digit_replacer, cp)
+            # 地文の記号置換
+            cp = p.replace('\\', '')
+            replace_map = {
+                'int': '∫', 'vec': '→', 'sqrt': '√', 
+                'times': '×', 'dots': '…', 'circ': '°', 'infty': '∞'
+            }
+            for k, v in replace_map.items():
+                cp = cp.replace(k, v)
+            
+            # 数字の数式フォント化
+            cp = re.sub(r'\b\d+(\.\d+)?\b', r' $\0$ ', cp)
             final_output.append(cp)
             
     return "".join(final_output)
 
 # ==========================================
-# 3. アプリケーションロジック
+# 3. アプリロジック (変更なし)
 # ==========================================
 @st.cache_data
 def load_data(subject):
@@ -120,12 +116,10 @@ if subject == "選択してください":
     st.stop()
 
 df_raw = load_data(subject)
-
-# 分野選択
-choice = st.sidebar.radio("分野・レベル選択", ["すべて"] + list(df_raw["category"].unique() if "category" in df_raw.columns else df_raw["level"].unique()))
+cats = ["すべて"] + list(df_raw["category"].unique() if "category" in df_raw.columns else df_raw["level"].unique())
+choice = st.sidebar.radio("分野・レベル選択", cats)
 df_filtered = df_raw if choice == "すべて" else df_raw[(df_raw.get("category") == choice) | (df_raw.get("level") == choice)]
 
-# セッション管理
 current_key = f"{subject}_{choice}"
 if "session_key" not in st.session_state or st.session_state.session_key != current_key:
     st.session_state.session_key = current_key
@@ -137,11 +131,10 @@ if st.session_state.df.empty: st.stop()
 row = st.session_state.df.iloc[st.session_state.idx % len(st.session_state.df)]
 
 # ==========================================
-# 4. メイン表示
+# 4. 表示
 # ==========================================
 if subject != "システム英単語":
     st.markdown(f'<div class="card blue-card">【{row.get("category", "問題")}】</div>', unsafe_allow_html=True)
-    # 問題文
     st.latex(rf"\displaystyle {total_math_cleaner(row['question'], is_block=True)}")
 
     if not st.session_state.answered:
@@ -151,12 +144,13 @@ if subject != "システム英単語":
     else:
         st.markdown("---")
         st.info(f"💡 **攻略の定石**\n\n{elegant_render(row['strategy'])}")
-        # 解答
         st.latex(rf"\displaystyle {total_math_cleaner(row['answer'], is_block=True)}")
         if "explanation" in row and pd.notna(row["explanation"]):
             st.success(f"📝 **ポイント解説**\n\n{elegant_render(row['explanation'])}")
         if st.button("次の問題へ"):
             st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
 else:
-    # 英語モード (省略)
-    st.write("英単語学習中...")
+    # 英単語簡易表示
+    st.write(f"### {row['sentence']}")
+    if st.button("正解を表示"): st.success(row['all_answers'])
+    if st.button("次へ"): st.session_state.idx += 1; st.rerun()
