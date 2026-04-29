@@ -5,7 +5,7 @@ import re
 import os
 
 # ==========================================
-# 1. デザイン設定 (形式・配色維持)
+# 1. デザイン設定 (一切の変更なし)
 # ==========================================
 st.set_page_config(
     page_title="理系には、勝ち方がある",
@@ -37,61 +37,67 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. 便利関数 (徹底修正版)
+# 2. 便利関数 (完遂版)
 # ==========================================
 def clean_math(text):
     """数式生データを純粋なLaTeXに変換"""
     if not text: return ""
     text = str(text)
     
-    # 生データのゴミ排除
-    text = text.replace(r'\displaystyle', '').replace(r'\\', '\\')
+    # 不要なエスケープの徹底除去
+    text = text.replace(r'\\', '\\').replace(r'\displaystyle', '')
     text = text.replace(r'\(', '').replace(r'\)', '').replace(r'\[', '').replace(r'\]', '').replace('$', '')
 
-    # 指数: x^2 -> x^{2} / x^10 -> x^{10}
-    # 数値だけでなくアルファベットや括弧を含む累乗に対応
+    # 累乗: x^2 -> x^{2} / i^2 -> i^{2}
     text = re.sub(r'\^([0-9a-zA-Z\(\)\{\}\-]+)', r'^{\1}', text)
     
-    # 平方根: sqrt(x) -> \sqrt{x}
+    # 平方根
     text = re.sub(r'sqrt\((.*?)\)', r'\\sqrt{\1}', text)
 
-    # 三角関数・対数関数
-    funcs = ['sin', 'cos', 'tan', 'log', 'ln', 'exp', 'theta', 'pi']
+    # 関数 (二重バックスラッシュ防止)
+    funcs = ['sin', 'cos', 'tan', 'log', 'ln', 'exp', 'theta', 'pi', 'i']
     for f in funcs:
-        # すでに \ が付いている場合は二重にしない
         text = re.sub(rf'(?<!\\)\b{f}\b', rf'\\{f}', text)
 
-    # 分数: 1/2 -> \frac{1}{2}
+    # 分数
     text = re.sub(r'(\d+)\s*/\s*(\d+)', r'\\frac{\1}{\2}', text)
 
     return text.strip()
 
 def render_explanation(text):
-    """解説文のレンダリング（アイコン重複防止・数式完全化）"""
+    """句読点の文頭配置とバックスラッシュ漏れを完全修正"""
     if pd.isna(text): return
     
-    # CSV特有のリテラル改行を物理改行に変換し、前後の不要文字をカット
-    raw_text = str(text).replace('\\n', '\n').strip()
+    # CSVリテラル改行の置換とアイコン除去
+    raw_text = str(text).replace('\\n', '\n').replace('📝', '').strip()
     
-    # 分割（カッコ内の数式、または改行で区切る）
+    # 分割（数式パートを抽出）
     parts = re.split(r'(\(.*?\))', raw_text)
-
-    for part in parts:
-        if not part: continue
-        p = part.strip()
-        
-        # アイコン(📝)がデータ自体に含まれている場合の重複除去
-        p = p.replace('📝', '').strip()
+    
+    # 文頭の句読点問題を解決するためのバッファ
+    for i in range(len(parts)):
+        p = parts[i].strip()
         if not p: continue
 
         if p.startswith('(') and p.endswith(')'):
-            # --- 数式モード ---
+            # 数式パート
             formula = p[1:-1].strip()
+            
+            # 【重要】次のパーツが句読点（。や、）で始まる場合、数式内に取り込む
+            suffix = ""
+            if i + 1 < len(parts):
+                next_part = parts[i+1].lstrip()
+                if next_part and next_part[0] in "。、.,":
+                    suffix = next_part[0]
+                    # 取り込んだ句読点を次のパーツから削除
+                    parts[i+1] = next_part[1:]
+            
             if formula:
-                st.latex(rf"\displaystyle {clean_math(formula)}")
+                # 数式と句読点を合体させて表示
+                st.latex(rf"\displaystyle {clean_math(formula)} \text{{{suffix}}}")
         else:
-            # --- テキストモード ---
-            # テキスト行に紛れ込んだLaTeXコマンド(\)を完全に消去
+            # テキストパート
+            # 表示直前にバックスラッシュや不要なコマンドを完全に消去
             clean_text = p.replace('\\', '').replace('displaystyle', '').strip()
             if clean_text:
                 st.write(clean_text)
@@ -116,7 +122,7 @@ def load_data(subject):
         return pd.DataFrame()
 
 # ==========================================
-# 3. ヘッダー & サイドバー
+# 3. ヘッダー & サイドバー (変更なし)
 # ==========================================
 st.markdown(
     '<div class="header-container"><div class="main-title">理系には、勝ち方がある</div></div>',
@@ -134,7 +140,7 @@ if sub == "選択してください":
     st.stop()
 
 # ==========================================
-# 4. データ準備
+# 4. データ準備 (変更なし)
 # ==========================================
 df_raw = load_data(sub)
 if df_raw.empty:
@@ -215,7 +221,6 @@ if sub == "システム英単語":
             del st.session_state["choices"]
             st.rerun()
 else:
-    # 数学モード
     st.markdown(f'<div class="card blue-card">【{row["category"]}】</div>', unsafe_allow_html=True)
     st.latex(rf"\displaystyle {clean_math(row['question'])}")
 
