@@ -37,68 +37,67 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. 便利関数 (修正ポイント)
+# 2. 便利関数 (修正の核)
 # ==========================================
 def clean_math(text):
-    """数式タグを整理し、LaTeX化"""
+    """生データを整理してLaTeX化。特に^2やバックスラッシュの混在を処理"""
+    if not text: return ""
     text = str(text)
-    # 不要なエスケープや記号の除去
-    text = text.replace(r'\(', '').replace(r'\)', '')
-    text = text.replace(r'\[', '').replace(r'\]', '')
-    text = text.replace('$', '')
 
-    # 指数: 括弧がない場合の x^123 -> x^{123} 変換
-    text = re.sub(r'\^([^{}\s]+)', r'^{\1}', text)
+    # 既に LaTeX タグがある場合は整理
+    text = text.replace(r'\displaystyle', '').replace(r'\\', '\\')
+    text = text.replace(r'\(', '').replace(r'\)', '').replace(r'\[', '').replace(r'\]', '').replace('$', '')
 
-    # 平方根: sqrt(...) -> \sqrt{...}
+    # 指数: x^2 -> x^{2}
+    text = re.sub(r'\^([0-9a-zA-Z]+)', r'^{\1}', text)
+
+    # sqrt(x) -> \sqrt{x}
     text = re.sub(r'sqrt\((.*?)\)', r'\\sqrt{\1}', text)
 
-    # 数学関数
+    # 関数
     funcs = ['sin', 'cos', 'tan', 'log', 'ln', 'exp']
     for f in funcs:
         text = re.sub(rf'\b{f}\b', rf'\\{f}', text)
 
-    # 分数: 数字/数字 -> \frac{数字}{数字}
+    # 分数 1/2 -> \frac{1}{2}
     text = re.sub(r'(\d+)\s*/\s*(\d+)', r'\\frac{\1}{\2}', text)
 
     return text.strip()
 
 def render_explanation(text):
     """
-    解説文中の ( ) で囲まれた部分を数式として抽出し、
-    それ以外のテキストと適切に分けて表示する。
+    解説文のパース:
+    1. ( ... ) で囲まれた部分は LaTeX 数式として表示。
+    2. 文中に残っている \displaystyle や単体の y などのゴミを掃除。
+    3. 改行を適切に反映。
     """
-    if pd.isna(text):
-        return
+    if pd.isna(text): return
 
     text = str(text)
-    # ( ) で囲まれた部分を分割。括弧を保持するためにキャプチャグループを使用
-    parts = re.split(r'(\(.*?\))', text)
-
-    # 表示用バッファ
-    current_text = ""
+    # 生データの改行を標準化
+    text = text.replace('\\n', '\n')
+    
+    # ( ) で区切ってリスト化
+    parts = re.split(r'(\(.*?\)|\n)', text)
 
     for part in parts:
-        # ( ... ) の形式にマッチする場合
-        if re.match(r'^\(.*\)$', part):
-            # 溜まっていたテキストを表示
-            if current_text.strip():
-                st.write(current_text.strip())
-                current_text = ""
-            
-            # 数式部分を抽出して表示
+        if not part: continue
+        
+        if part == '\n':
+            st.write("") # 物理的な改行を入れる
+        elif part.startswith('(') and part.endswith(')'):
+            # カッコ内の数式を抽出
             formula = part[1:-1].strip()
+            # もし中身が数式ならLatex
             if formula:
-                st.latex(rf"\displaystyle {clean_math(formula)}")
+                # 生データの \displaystyle 等を除去して適用
+                clean_f = clean_math(formula)
+                st.latex(rf"\displaystyle {clean_f}")
         else:
-            # 通常のテキスト（改行含む）
-            # 文中の \n を反映させつつバッファに溜める
-            current_text += part
-
-    # 最後に残ったテキストを表示
-    if current_text.strip():
-        st.write(current_text.strip())
-
+            # 普通のテキスト部分。残っている \ や LaTeX コマンドを置換
+            clean_text = part.replace(r'\displaystyle', '').replace('\\', '').strip()
+            if clean_text:
+                st.write(clean_text)
 
 @st.cache_data
 def load_data(subject):
@@ -108,8 +107,7 @@ def load_data(subject):
         "入試数学の定石（ⅠAⅡB C）": "math_std.csv"
     }
     file_path = file_map.get(subject)
-    if not file_path:
-        return pd.DataFrame()
+    if not file_path: return pd.DataFrame()
     current_dir = os.path.dirname(os.path.abspath(__file__))
     full_path = os.path.join(current_dir, file_path)
     try:
@@ -160,8 +158,7 @@ if sub == "システム英単語":
 else:
     all_cats = []
     for c in df_raw["category"].astype(str):
-        if c not in all_cats:
-            all_cats.append(c)
+        if c not in all_cats: all_cats.append(c)
     filter_label = st.sidebar.radio("分野・単元選択", ["すべて"] + all_cats)
     current_filter_val = filter_label
     filter_col = "category"
@@ -184,11 +181,10 @@ if (
         st.session_state.df = df_filtered.sample(frac=1).reset_index(drop=True)
     st.session_state.idx = 0
     st.session_state.answered = False
-    if "choices" in st.session_state:
-        del st.session_state["choices"]
+    if "choices" in st.session_state: del st.session_state["choices"]
 
 if st.session_state.df.empty:
-    st.error(f"選択された範囲（{filter_label}）に該当するデータがありません。")
+    st.error(f"選択された範囲に該当するデータがありません。")
     st.stop()
 
 row = st.session_state.df.iloc[st.session_state.idx % len(st.session_state.df)]
@@ -205,8 +201,7 @@ if sub == "システム英単語":
         ans_list = [x.strip() for x in re.split(r'[,、;]', str(row["all_answers"])) if x.strip()]
         correct = ans_list[0]
         dummy_pool = [x.strip() for x in re.split(r'[,、;]', str(row["dummy_pool"])) if x.strip() and x.strip() != correct]
-        if len(dummy_pool) < 3:
-            dummy_pool += ["(dummy)"] * (3 - len(dummy_pool))
+        if len(dummy_pool) < 3: dummy_pool += ["(dummy)"] * (3 - len(dummy_pool))
         choices = random.sample([correct] + random.sample(dummy_pool, 3), 4)
         random.shuffle(choices)
         st.session_state.choices = choices
@@ -232,7 +227,6 @@ if sub == "システム英単語":
             del st.session_state["choices"]
             st.rerun()
 else:
-    # 数学モード
     st.markdown(f'<div class="card blue-card">【{row["category"]}】</div>', unsafe_allow_html=True)
     st.latex(rf"\displaystyle {clean_math(row['question'])}")
 
@@ -244,7 +238,6 @@ else:
         st.markdown("---")
         st.markdown("##### 💡 攻略の定石")
         st.info(row["strategy"])
-
         st.markdown("##### 【解答】")
         st.latex(rf"\displaystyle {clean_math(row['answer'])}")
 
