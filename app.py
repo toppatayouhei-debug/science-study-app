@@ -8,7 +8,7 @@ import os
 # 1. ページ設定
 # ==========================================
 st.set_page_config(
-    page_title="理系には、勝ち方がある",
+    page_title="「理系」スターターパック",
     page_icon="🧬",
     layout="centered"
 )
@@ -31,6 +31,15 @@ st.markdown("""
     color: #1e3a8a;
     font-size: 2.2rem;
     font-weight: 800;
+}
+
+.description-box {
+    background-color: #ffffff;
+    padding: 20px;
+    border-radius: 12px;
+    border: 1px solid #e5e7eb;
+    margin-bottom: 25px;
+    line-height: 1.6;
 }
 
 .card {
@@ -64,46 +73,32 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 3. 数式処理
+# 3. 数式処理 (既存のまま)
 # ==========================================
 def clean_math(text):
-    """CSV文字列をLaTeX表示しやすく整形"""
     if pd.isna(text):
         return ""
-
     t = str(text).strip()
-
-    # 外側記号除去
     t = t.replace("$", "")
     t = t.replace(r"\(", "")
     t = t.replace(r"\)", "")
     t = t.replace(r"\[", "")
     t = t.replace(r"\]", "")
-
-    # x^2 -> x^{2}
     t = re.sub(r'([a-zA-Z0-9\)\}])\^([0-9a-zA-Z]+)', r'\1^{\2}', t)
-
     return t
 
-
 def render_inline_math(text):
-    """説明文中の数式だけ $...$ にする"""
     if pd.isna(text):
         return ""
-
     s = str(text)
-
     pattern = r'([a-zA-Z0-9\\+\-*/=^{}()]+(?:\s*[=+\-*/]\s*[a-zA-Z0-9\\+\-*/=^{}()]+)+|[a-zA-Z]+\^[0-9]+)'
-
     def repl(m):
         expr = clean_math(m.group(1))
         return f"${expr}$"
-
     return re.sub(pattern, repl, s)
 
-
 # ==========================================
-# 4. データ読み込み
+# 4. データ読み込み (既存のまま)
 # ==========================================
 @st.cache_data
 def load_data(subject):
@@ -112,29 +107,24 @@ def load_data(subject):
         "入試数学の定石（数Ⅲ）": "math3.csv",
         "入試数学の定石（ⅠAⅡB C）": "math_std.csv"
     }
-
     file_name = file_map.get(subject)
     if not file_name:
         return pd.DataFrame()
-
     try:
         base = os.path.dirname(os.path.abspath(__file__))
         path = os.path.join(base, file_name)
-
         df = pd.read_csv(path, encoding="utf-8-sig")
         df.columns = df.columns.str.strip()
         return df
-
     except Exception as e:
         st.error(f"読み込み失敗: {e}")
         return pd.DataFrame()
 
-
 # ==========================================
-# 5. ヘッダー
+# 5. ヘッダー (タイトル変更 & アイコン追加)
 # ==========================================
 st.markdown(
-    '<div class="header-container"><div class="main-title">理系には、勝ち方がある</div></div>',
+    '<div class="header-container"><div class="main-title">🧪 🔢 🧬 「理系」スターターパック</div></div>',
     unsafe_allow_html=True
 )
 
@@ -153,8 +143,16 @@ subject = st.sidebar.selectbox(
     ]
 )
 
+# 科目未選択時の説明文表示
 if subject == "選択してください":
-    st.markdown("左のサイドバーから学習したい科目を選択してください。")
+    st.markdown("""
+    <div class="description-box">
+        <p><strong>①英単語</strong>はリーディングで「見ればわかる」意味を増やすためのツールです。基本はシス単で勉強しましょう。単語帳に含まれる情報量を大切に。</p>
+        <p><strong>②数学</strong>は入試問題を解くための基礎を「定石」として整理しました。「見てすぐに解法が思い浮かぶ」ことを目標にしましょう。</p>
+        <hr style="border:0; border-top:1px solid #eee; margin:15px 0;">
+        <p style="color:#666; font-size:0.9rem;">👈 左のサイドバーから学習したい科目を選択してください。</p>
+    </div>
+    """, unsafe_allow_html=True)
     st.stop()
 
 # ==========================================
@@ -193,7 +191,7 @@ else:
     filter_col = "category"
 
 # ==========================================
-# 9. セッション管理
+# 9. セッション管理 (既存のまま)
 # ==========================================
 changed = (
     "current_sub" not in st.session_state or
@@ -232,7 +230,7 @@ row = st.session_state.df.iloc[
 ]
 
 # ==========================================
-# 10. 英単語モード
+# 10. 英単語モード (既存のまま)
 # ==========================================
 if subject == "システム英単語":
 
@@ -252,50 +250,36 @@ if subject == "システム英単語":
     )
 
     if "choices" not in st.session_state:
-
         ans_list = [
             x.strip() for x in re.split(r'[,、;]', str(row["all_answers"]))
             if x.strip()
         ]
-
         correct = ans_list[0]
-
         dummy_pool = [
             x.strip() for x in re.split(r'[,、;]', str(row["dummy_pool"]))
             if x.strip() and x.strip() != correct
         ]
-
         while len(dummy_pool) < 3:
             dummy_pool.append("dummy")
-
         choices = [correct] + random.sample(dummy_pool, 3)
         random.shuffle(choices)
-
         st.session_state.choices = choices
         st.session_state.correct = correct
 
     cols = st.columns(2)
-
     for i, choice in enumerate(st.session_state.choices):
         with cols[i % 2]:
-            if st.button(
-                choice,
-                key=f"choice_{i}",
-                disabled=st.session_state.answered
-            ):
+            if st.button(choice, key=f"choice_{i}", disabled=st.session_state.answered):
                 st.session_state.selected = choice
                 st.session_state.answered = True
                 st.rerun()
 
     if st.session_state.answered:
-
         if st.session_state.selected == st.session_state.correct:
             st.success("Correct!")
         else:
             st.error(f"Incorrect... 正解：{st.session_state.correct}")
-
         st.write(f"**意味:** {row['all_answers']}")
-
         if st.button("次の問題へ"):
             st.session_state.idx += 1
             st.session_state.answered = False
@@ -303,10 +287,9 @@ if subject == "システム英単語":
             st.rerun()
 
 # ==========================================
-# 11. 数学モード
+# 11. 数学モード (既存のまま)
 # ==========================================
 else:
-
     st.markdown(
         f'<div class="card blue-card">【{row["category"]}】</div>',
         unsafe_allow_html=True
@@ -315,24 +298,18 @@ else:
     st.latex(clean_math(row["question"]))
 
     if not st.session_state.answered:
-
         if st.button("定石と解答を確認する"):
             st.session_state.answered = True
             st.rerun()
-
     else:
         st.markdown("---")
-
         st.markdown("##### 💡 攻略の定石")
         st.info(str(row["strategy"]))
-
         st.markdown("##### 【解答】")
         st.latex(clean_math(row["answer"]))
-
         if "explanation" in row and pd.notna(row["explanation"]):
             st.markdown("##### 📝 ポイント解説")
             st.markdown(render_inline_math(row["explanation"]))
-
         if st.button("次の問題へ"):
             st.session_state.idx += 1
             st.session_state.answered = False
