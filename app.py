@@ -25,38 +25,42 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. 徹底安全・置換エンジン (安定性重視)
+# 2. 徹底安全・置換エンジン（最終安定版）
 # ==========================================
 def total_math_cleaner(text, is_block=False):
     if not text or pd.isna(text): return ""
-    # 一旦バックスラッシュを消去し、綺麗な状態から再構築
+    # バックスラッシュとdisplaystyleを一旦リセット
     t = str(text).replace('\\', '').replace('displaystyle', '').replace('$', '')
 
-    # --- A. 単純置換（エラーが起きない最も安全な方法） ---
-    t = t.replace('int', r'\int')
-    t = t.replace('vec', r'\vec')
-    t = t.replace('sqrt', r'\sqrt')
-    t = t.replace('times', r'\times')
-    t = t.replace('cdot', r'\cdot')
-    t = t.replace('dots', r'\dots')
+    # --- A. 記号の単純一括置換（エラー回避のため最優先） ---
+    # 置換順序を調整し、二重変換を防ぐ
+    t = t.replace('int', r'\int ')
+    t = t.replace('vec', r'\vec ')
+    t = t.replace('sqrt', r'\sqrt ')
+    t = t.replace('times', r'\times ')
+    t = t.replace('cdot', r'\cdot ')
+    t = t.replace('dots', r'\dots ')
+    t = t.replace('infty', r'\infty ')
+    
+    # 度数記号の二重上付き (^circ) を防止
+    t = t.replace('^circ', r'^{\circ}')
     t = t.replace('circ', r'^{\circ}')
-    t = t.replace('infty', r'\infty')
 
-    # --- B. 構造修正（正規表現は最小限に） ---
+    # --- B. 構造修正（肩と分数の最小限の処理） ---
     # 指数（肩）を {} で保護
     t = re.sub(r'\^([0-9a-zA-Z\+ \-]+)', r'^{\1}', t)
     
     # 組合せ
     t = re.sub(r'([nN\d]+)?C([rR\d]+)', r'{}_{\1}C_{\2}', t)
 
-    # 分数（問題・解答用）
+    # 分数（独立行用）
     if is_block:
         t = re.sub(r'(\d+)\s*/\s*(\d+)', r'\\frac{\1}{\2}', t)
 
     # --- C. 数学関数（バックスラッシュ付与） ---
     funcs = ['sin', 'cos', 'tan', 'log', 'ln', 'exp', 'theta', 'pi', 'alpha', 'beta', 'gamma', 'dx', 'dt']
     for f in funcs:
-        # 重複付与を防ぎつつバックスラッシュを付ける
+        # すでに付与されている場合を除外して置換
         t = re.sub(rf'(?<!\\)\b{f}\b', rf'\\{f}', t)
     
     # 虚数単位 i (文末や数字の後の i を数式化)
@@ -65,11 +69,10 @@ def total_math_cleaner(text, is_block=False):
     return t.strip()
 
 def elegant_render(text):
-    """地の文の数字や記号を整える"""
     if not text or pd.isna(text): return ""
     raw = str(text).replace('\\n', '\n').replace('📝', '').strip()
     
-    # カッコ分割
+    # カッコ分割パース
     parts = re.split(r'(\(.*?\))', raw)
     final_output = []
     
@@ -78,7 +81,7 @@ def elegant_render(text):
             inner = p[1:-1].strip()
             final_output.append(f" ${total_math_cleaner(inner)}$ ")
         else:
-            # 地文の記号置換
+            # 地文：バックスラッシュを消しつつ、記号を日本語フォントで見やすく
             cp = p.replace('\\', '')
             replace_map = {
                 'int': '∫', 'vec': '→', 'sqrt': '√', 
@@ -87,14 +90,14 @@ def elegant_render(text):
             for k, v in replace_map.items():
                 cp = cp.replace(k, v)
             
-            # 数字の数式フォント化
+            # 数字をすべて数式フォント ($ $) に
             cp = re.sub(r'\b\d+(\.\d+)?\b', r' $\0$ ', cp)
             final_output.append(cp)
             
     return "".join(final_output)
 
 # ==========================================
-# 3. アプリロジック (変更なし)
+# 3. アプリロジック
 # ==========================================
 @st.cache_data
 def load_data(subject):
@@ -112,7 +115,7 @@ st.title("理系には、勝ち方がある")
 subject = st.sidebar.selectbox("科目を選択", ["選択してください", "システム英単語", "入試数学の定石（数Ⅲ）", "入試数学の定石（ⅠAⅡB C）"])
 
 if subject == "選択してください":
-    st.info("サイドバーから科目を選択してください。")
+    st.info("サイドバーから科目を選択して開始してください。")
     st.stop()
 
 df_raw = load_data(subject)
@@ -131,10 +134,11 @@ if st.session_state.df.empty: st.stop()
 row = st.session_state.df.iloc[st.session_state.idx % len(st.session_state.df)]
 
 # ==========================================
-# 4. 表示
+# 4. メイン表示
 # ==========================================
 if subject != "システム英単語":
     st.markdown(f'<div class="card blue-card">【{row.get("category", "問題")}】</div>', unsafe_allow_html=True)
+    # 問題文のレンダリング
     st.latex(rf"\displaystyle {total_math_cleaner(row['question'], is_block=True)}")
 
     if not st.session_state.answered:
@@ -150,7 +154,7 @@ if subject != "システム英単語":
         if st.button("次の問題へ"):
             st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
 else:
-    # 英単語簡易表示
+    # 英語モード
     st.write(f"### {row['sentence']}")
     if st.button("正解を表示"): st.success(row['all_answers'])
     if st.button("次へ"): st.session_state.idx += 1; st.rerun()
