@@ -85,15 +85,17 @@ def load_data(subject):
     }
 
     try:
+        # CSV読み込みの安定化
         df = pd.read_csv(
             file_map[subject],
             encoding="utf-8-sig",
-            on_bad_lines="skip"
+            sep=None,
+            engine='python'
         ).dropna(how="all")
 
         df.columns = df.columns.str.strip()
 
-        # category 修正（数列" など）
+        # category 修正
         if "category" in df.columns:
             df["category"] = (
                 df["category"]
@@ -103,7 +105,7 @@ def load_data(subject):
                 .str.replace("”", "", regex=False)
             )
 
-        # 数式列の軽微クリーニング
+        # 数式列のクリーニング（読み込み段階での保護）
         for col in ["question", "strategy", "answer", "explanation"]:
             if col in df.columns:
                 df[col] = (
@@ -113,21 +115,19 @@ def load_data(subject):
                     .str.replace("\\\\", "\\", regex=False)
                     .str.strip()
                 )
-
         return df
 
     except Exception as e:
         st.error(f"データの読み込みに失敗しました: {e}")
         return pd.DataFrame()
 
-
 def clean_math(text):
     text = str(text)
+    # $が含まれている場合は取り除き、バックスラッシュを整理
     text = text.replace("$", "")
+    # CSVからの読み込み時にエスケープされている場合があるため整理
     text = text.replace("\\\\", "\\")
-    text = text.strip()
-    return text
-
+    return text.strip()
 
 # ==========================================
 # 3. ヘッダー
@@ -158,6 +158,7 @@ sub = st.sidebar.selectbox(
 # 初期画面
 # ==========================================
 if sub == "選択してください":
+    # 修正点：unsafe_allow_html=Trueでstrongタグ等を有効化
     st.markdown("""
     <div class="concept-section">
         <strong>■ Goal</strong><br>
@@ -185,7 +186,6 @@ if df_raw.empty:
 # 6. フィルタ
 # ==========================================
 if sub == "システム英単語":
-
     lv_map = {
         "すべて": "All",
         "Fundamental (1-600)": "Fundamental",
@@ -193,21 +193,19 @@ if sub == "システム英単語":
         "Advanced (1201-1700)": "Advanced",
         "Final (1701-2027)": "Final"
     }
-
     selected_filter = st.sidebar.radio("レベル", list(lv_map.keys()))
     filter_keyword = lv_map[selected_filter]
     filter_col = "level"
 
 else:
-    all_cats = df_raw["category"].dropna().unique().tolist()
-
-    priority_cats = [
-        c for c in all_cats
-        if any(kw in str(c) for kw in ["微分", "積分", "極限"])
-    ]
-
+    # 修正点：sorted()を使いつつ、出現順（dict.fromkeys）で並びの崩れを防ぐ
+    # 元のCSVの並び順を優先したい場合は sorted を外してください
+    all_cats = list(dict.fromkeys(df_raw["category"].dropna().astype(str).tolist()))
+    
+    priority_cats = [c for c in all_cats if any(kw in c for kw in ["微分", "積分", "極限"])]
     other_cats = [c for c in all_cats if c not in priority_cats]
-
+    
+    # ここで並び替え。元の順序を壊したくない場合は cats = ["すべて"] + all_cats に変更
     cats = ["すべて"] + sorted(priority_cats) + sorted(other_cats)
 
     selected_filter = st.sidebar.radio("分野", cats)
@@ -224,17 +222,13 @@ reset_needed = (
 )
 
 if reset_needed:
-
     st.session_state.current_sub = sub
     st.session_state.last_filter = selected_filter
-
     df_f = df_raw.copy()
 
     if selected_filter != "すべて":
         df_f = df_raw[
-            df_raw[filter_col]
-            .astype(str)
-            .str.contains(filter_keyword, case=False, na=False)
+            df_raw[filter_col].astype(str).str.contains(filter_keyword, case=False, na=False)
         ]
 
     st.session_state.df = df_f.sample(frac=1).reset_index(drop=True)
@@ -256,9 +250,7 @@ row = st.session_state.df.iloc[
 # 8. 英単語モード
 # ==========================================
 if sub == "システム英単語":
-
     word = str(row["question"])
-
     sentence = re.sub(
         re.escape(word),
         f"<span class='highlight'>{word}</span>",
@@ -272,60 +264,33 @@ if sub == "システム英単語":
     )
 
     if "choices" not in st.session_state:
-
-        ans_list = [
-            x.strip()
-            for x in re.split(r'[,、;]', str(row["all_answers"]))
-            if x.strip()
-        ]
-
+        ans_list = [x.strip() for x in re.split(r'[,、;]', str(row["all_answers"])) if x.strip()]
         correct = ans_list[0]
-
-        dummies = [
-            x.strip()
-            for x in re.split(r'[,、;]', str(row["dummy_pool"]))
-            if x.strip() and x.strip() != correct
-        ]
-
-        choices = [correct] + random.sample(
-            dummies,
-            min(3, len(dummies))
-        )
-
+        dummies = [x.strip() for x in re.split(r'[,、;]', str(row["dummy_pool"])) if x.strip() and x.strip() != correct]
+        choices = [correct] + random.sample(dummies, min(3, len(dummies)))
         random.shuffle(choices)
 
         st.session_state.correct = correct
         st.session_state.choices = choices
 
     c1, c2 = st.columns(2)
-
     for i, val in enumerate(st.session_state.choices):
-
         with c1 if i % 2 == 0 else c2:
-
-            if st.button(
-                val,
-                key=f"t_{st.session_state.idx}_{i}",
-                disabled=st.session_state.answered
-            ):
+            if st.button(val, key=f"t_{st.session_state.idx}_{i}", disabled=st.session_state.answered):
                 st.session_state.selected = val
                 st.session_state.answered = True
                 st.rerun()
 
     if st.session_state.answered:
-
         if st.session_state.selected == st.session_state.correct:
             st.success("正解")
         else:
             st.error(f"正解：{st.session_state.correct}")
 
         st.write(f"意味：{row['all_answers']}")
-
         if st.button("次の問題へ"):
-
             if "choices" in st.session_state:
                 del st.session_state["choices"]
-
             st.session_state.idx += 1
             st.session_state.answered = False
             st.rerun()
@@ -334,53 +299,43 @@ if sub == "システム英単語":
 # 9. 数学モード
 # ==========================================
 else:
-
     st.markdown(
         f'<div class="card blue-card">【{row["category"]}】例題</div>',
         unsafe_allow_html=True
     )
 
-    # 問題
+    # 修正点：LaTeXが確実にレンダリングされるよう \displaystyle を付与
     q_text = clean_math(row["question"])
-    st.latex(rf"{q_text}")
+    st.latex(rf"\displaystyle {q_text}")
 
     if not st.session_state.answered:
-
         if st.button("定石と解答を確認する"):
             st.session_state.answered = True
             st.rerun()
-
     else:
         st.markdown("---")
-
-        # 定石
         st.write("**💡 定石・方針**")
         strat_text = clean_math(row["strategy"])
-
-        try:
-            st.latex(rf"{strat_text}")
-        except:
+        
+        # 修正点：バックスラッシュがあればLaTeX、なければinfoで表示
+        if "\\" in strat_text:
+            st.latex(rf"\displaystyle {strat_text}")
+        else:
             st.info(strat_text)
 
-        # 解答
         st.write("**【解答・略解】**")
         ans_text = clean_math(row["answer"])
-
-        try:
-            st.latex(rf"{ans_text}")
-        except:
+        if any(c in ans_text for c in ['\\', '^', '_', '{', 'frac']):
+            st.latex(rf"\displaystyle {ans_text}")
+        else:
             st.write(ans_text)
 
-        # 解説
         if "explanation" in row and pd.notna(row["explanation"]):
-
             st.write("**📝 ポイント解説**")
-
             exp_text = clean_math(row["explanation"])
-
-            try:
-                st.latex(rf"{exp_text}")
-            except:
+            if "\\" in exp_text:
+                st.latex(rf"\displaystyle {exp_text}")
+            else:
                 st.info(exp_text)
 
         if st.button("次の問題へ"):
