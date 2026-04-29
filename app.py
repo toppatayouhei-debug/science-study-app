@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import random
 import re
 import os
 
@@ -25,19 +24,20 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. 徹底クリーンアップエンジン (最終防衛ライン)
+# 2. 徹底ノイズ除去エンジン（対「？」最終兵器）
 # ==========================================
 def total_math_cleaner(text, is_block=False):
     if not text or pd.isna(text): return ""
     
-    # 1. 物理的なゴミ・特殊文字・不要なバックスラッシュを徹底排除
+    # 1. 特殊な空白文字やゴミを物理的に抹消
     t = str(text)
-    t = t.replace('\\ ', ' ').replace('\\', '').replace('displaystyle', '').replace('$', '')
-    # 謎の「？」の正体（特殊文字）を標準スペースに置換
-    t = t.replace('\u3000', ' ').replace('\xa0', ' ').replace('\x00', ' ')
+    # \xa0 (Non-breaking space), \u3000 (全角スペース), \x00 (Null) などを一掃
+    t = t.replace('\u3000', ' ').replace('\xa0', ' ').replace('\x00', ' ').replace('\ufeff', '')
     
-    # 2. 基本記号の再定義
-    # ここで dx, dt を先に変換して \dx になるように保護する
+    # 2. 数式として不要なバックスラッシュを削除し、再構成
+    t = t.replace('\\ ', ' ').replace('\\', '').replace('displaystyle', '').replace('$', '')
+
+    # 3. 基本記号の変換
     t = t.replace('dx', r'\,dx').replace('dt', r'\,dt')
     t = t.replace('int', r'\int ')
     t = t.replace('vec', r'\vec ')
@@ -47,31 +47,33 @@ def total_math_cleaner(text, is_block=False):
     t = t.replace('infty', r'\infty ')
     t = t.replace('circ', r'^{\circ}')
 
-    # 3. 指数 (肩) の厳格な隔離
-    # x^3+C -> x^{3}+C  (演算子やスペースで止まるように)
+    # 4. 指数 (肩) の隔離
     t = re.sub(r'\^([0-9a-zA-Z]+)', r'^{\1}', t)
     
-    # 4. 積分定数周りの整形
+    # 5. 積分定数周り
     t = t.replace('+C', ' + C').replace('-C', ' - C')
 
-    # 5. 分数（ブロック表示用）
+    # 6. 分数（ブロック表示用）
     if is_block:
         t = re.sub(r'(\d+)\s*/\s*(\d+)', r'\\frac{\1}{\2}', t)
 
-    # 6. 数学関数のバックスラッシュ付与
+    # 7. 数学関数
     funcs = ['sin', 'cos', 'tan', 'log', 'ln', 'exp', 'theta', 'pi']
     for f in funcs:
         t = re.sub(rf'\b{f}\b', rf'\\{f}', t)
     
-    # 7. 虚数単位
+    # 8. 虚数単位
     t = re.sub(r'(\d+|\b)i\b', r'\1 i ', t)
 
+    # 最終チェック：LaTeXでエラーになる制御文字を完全に消す
+    t = "".join(char for char in t if ord(char) < 128 or char in '^{}_\\')
+    
     return t.strip()
 
 def elegant_render(text):
     if not text or pd.isna(text): return ""
-    # 文中のノイズを除去
-    raw = str(text).replace('\\n', '\n').replace('📝', '').strip()
+    # 特殊なゴミをここでも掃除
+    raw = str(text).replace('\u3000', ' ').replace('\xa0', ' ').replace('\\n', '\n').replace('📝', '').strip()
     
     parts = re.split(r'(\(.*?\))', raw)
     final_output = []
@@ -81,7 +83,7 @@ def elegant_render(text):
             inner = p[1:-1].strip()
             final_output.append(f" ${total_math_cleaner(inner)}$ ")
         else:
-            # 地文：バックスラッシュを消しつつ、主要記号を置換
+            # 地文：バックスラッシュを消し、主要記号を置換
             cp = p.replace('\\', '').replace('int', '∫').replace('sqrt', '√').replace('times', '×').replace('circ', '°')
             # 数字を数式フォント化
             cp = re.sub(r'\b\d+(\.\d+)?\b', r' $\0$ ', cp)
@@ -108,7 +110,7 @@ st.title("理系には、勝ち方がある")
 subject = st.sidebar.selectbox("科目を選択", ["選択してください", "システム英単語", "入試数学の定石（数Ⅲ）", "入試数学の定石（ⅠAⅡB C）"])
 
 if subject == "選択してください":
-    st.info("サイドバーから科目を選択して開始してください。")
+    st.info("サイドバーから科目を選択してください。")
     st.stop()
 
 df_raw = load_data(subject)
