@@ -5,7 +5,7 @@ import re
 import os
 
 # ==========================================
-# 1. デザイン設定 (一切の変更なし)
+# 1. デザイン設定
 # ==========================================
 st.set_page_config(
     page_title="理系には、勝ち方がある",
@@ -37,66 +37,71 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. 便利関数 (インライン対応・最終版)
+# 2. 便利関数 (納品確定版)
 # ==========================================
-def clean_math(text):
-    """数式生データをLaTeXに変換"""
+def clean_math(text, is_inline=False):
+    """数式生データをLaTeXに変換。インライン時は制御文字を抑制"""
     if not text: return ""
     text = str(text)
     
-    # 不要なエスケープの除去
-    text = text.replace(r'\\', '\\').replace(r'\displaystyle', '')
+    # 共通のクレンジング
+    text = text.replace(r'\displaystyle', '').replace(r'\\', '\\')
     text = text.replace(r'\(', '').replace(r'\)', '').replace(r'\[', '').replace(r'\]', '').replace('$', '')
 
     # 累乗: x^2 -> x^{2}
     text = re.sub(r'\^([0-9a-zA-Z\(\)\{\}\-]+)', r'^{\1}', text)
     
-    # 三角関数・数学記号
-    funcs = ['sin', 'cos', 'tan', 'log', 'ln', 'exp', 'theta', 'pi', 'i']
-    for f in funcs:
-        text = re.sub(rf'(?<!\\)\b{f}\b', rf'\\{f}', text)
-
     # 平方根・分数
     text = re.sub(r'sqrt\((.*?)\)', r'\\sqrt{\1}', text)
     text = re.sub(r'(\d+)\s*/\s*(\d+)', r'\\frac{\1}{\2}', text)
 
+    # 関数 (sin, cos等)
+    funcs = ['sin', 'cos', 'tan', 'log', 'ln', 'exp', 'theta', 'pi']
+    for f in funcs:
+        text = re.sub(rf'(?<!\\)\b{f}\b', rf'\\{f}', text)
+
+    # 虚数単位iの処理：インラインで \i となると文字化けしやすいため、
+    # 独立数式時のみ LaTeX装飾を行い、インラインではそのままにする
+    if not is_inline:
+        text = re.sub(r'(?<![a-zA-Z\\])i(?![a-zA-Z])', r'i', text) # シンプルにiとして扱う
+    
     return text.strip()
 
 def render_explanation(text):
-    """インライン数式と独立行数式を判別してレンダリング"""
+    """テキストと数式をシームレスに結合"""
     if pd.isna(text): return
     
-    # アイコン除去と改行正規化
+    # 物理的なゴミの掃除
     raw_text = str(text).replace('\\n', '\n').replace('📝', '').strip()
     
-    # 1. まず行ごとに分割
     lines = raw_text.split('\n')
-    
     for line in lines:
-        if not line.strip():
-            continue
+        line = line.strip()
+        if not line: continue
             
-        # 2. その行が「(数式)」のみで構成されているかチェック
-        # 例: "(sin^2 + cos^2 = 1)" は中央揃え、 "角度 (theta) が" はインライン
-        if re.fullmatch(r'\(.*?\)[。、.,]?', line.strip()):
-            # 独立行として美しく中央表示
-            formula = re.search(r'\((.*?)\)', line).group(1)
-            suffix = line.strip().replace(f"({formula})", "")
-            st.latex(rf"\displaystyle {clean_math(formula)} \text{{{suffix}}}")
+        # その行が完全に数式だけのケース (例: "(x^2 + y^2 = 1)")
+        if re.fullmatch(r'\(.*?\)[。、.,]?', line):
+            formula_match = re.search(r'\((.*?)\)', line)
+            if formula_match:
+                formula = formula_match.group(1)
+                suffix = line.replace(f"({formula})", "").strip()
+                # 独立行は st.latex
+                st.latex(rf"\displaystyle {clean_math(formula, is_inline=False)} \text{{{suffix}}}")
         else:
-            # 文章中に数式が混在している場合 (インライン表示)
-            # 全体をMarkdownとして構成し、数式部分を $...$ で囲う
+            # 文章中に数式が混在するケース
             parts = re.split(r'(\(.*?\))', line)
-            combined_md = ""
+            new_parts = []
             for part in parts:
                 if part.startswith('(') and part.endswith(')'):
-                    formula = part[1:-1].strip()
-                    combined_md += f" ${clean_math(formula)}$ "
+                    # インライン数式
+                    f_content = part[1:-1].strip()
+                    # 文章中では $ $ で囲む
+                    new_parts.append(f"${clean_math(f_content, is_inline=True)}$")
                 else:
-                    # テキスト中のバックスラッシュは除去
-                    combined_md += part.replace('\\', '').replace('displaystyle', '')
+                    # テキスト部分はバックスラッシュを完全除去
+                    new_parts.append(part.replace('\\', '').replace('displaystyle', ''))
             
-            st.markdown(combined_md)
+            st.markdown("".join(new_parts))
 
 @st.cache_data
 def load_data(subject):
@@ -118,7 +123,7 @@ def load_data(subject):
         return pd.DataFrame()
 
 # ==========================================
-# 3. ヘッダー & サイドバー
+# 3. ヘッダー & サイドバー (変更なし)
 # ==========================================
 st.markdown(
     '<div class="header-container"><div class="main-title">理系には、勝ち方がある</div></div>',
@@ -217,7 +222,6 @@ if sub == "システム英単語":
             del st.session_state["choices"]
             st.rerun()
 else:
-    # 数学モード
     st.markdown(f'<div class="card blue-card">【{row["category"]}】</div>', unsafe_allow_html=True)
     st.latex(rf"\displaystyle {clean_math(row['question'])}")
 
