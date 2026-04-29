@@ -25,17 +25,20 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. 徹底クリーンアップ数式エンジン
+# 2. 徹底クリーンアップエンジン (最終防衛ライン)
 # ==========================================
 def total_math_cleaner(text, is_block=False):
     if not text or pd.isna(text): return ""
     
-    # 1. 謎の文字（特殊スペースやエスケープ）を物理的に排除
-    t = str(text).replace('\\ ', ' ').replace('\\', '').replace('displaystyle', '').replace('$', '')
-    # 文字化けの原因となる特殊な空白文字を置換
-    t = t.replace('\u3000', ' ').replace('\xa0', ' ')
-
-    # 2. 基本記号の置換（dx, dt を独立させてバックスラッシュを付与）
+    # 1. 物理的なゴミ・特殊文字・不要なバックスラッシュを徹底排除
+    t = str(text)
+    t = t.replace('\\ ', ' ').replace('\\', '').replace('displaystyle', '').replace('$', '')
+    # 謎の「？」の正体（特殊文字）を標準スペースに置換
+    t = t.replace('\u3000', ' ').replace('\xa0', ' ').replace('\x00', ' ')
+    
+    # 2. 基本記号の再定義
+    # ここで dx, dt を先に変換して \dx になるように保護する
+    t = t.replace('dx', r'\,dx').replace('dt', r'\,dt')
     t = t.replace('int', r'\int ')
     t = t.replace('vec', r'\vec ')
     t = t.replace('sqrt', r'\sqrt ')
@@ -44,19 +47,19 @@ def total_math_cleaner(text, is_block=False):
     t = t.replace('infty', r'\infty ')
     t = t.replace('circ', r'^{\circ}')
 
-    # 3. 指数 (肩) の保護：+ や - が来たらそこで {} を閉じる
-    # x^3+C -> x^{3}+C
+    # 3. 指数 (肩) の厳格な隔離
+    # x^3+C -> x^{3}+C  (演算子やスペースで止まるように)
     t = re.sub(r'\^([0-9a-zA-Z]+)', r'^{\1}', t)
     
-    # 4. 積分定数や演算子の周りに適切なスペース
+    # 4. 積分定数周りの整形
     t = t.replace('+C', ' + C').replace('-C', ' - C')
 
-    # 5. 分数（独立行用）
+    # 5. 分数（ブロック表示用）
     if is_block:
         t = re.sub(r'(\d+)\s*/\s*(\d+)', r'\\frac{\1}{\2}', t)
 
-    # 6. 数学関数と微小要素 (dx, dt)
-    funcs = ['sin', 'cos', 'tan', 'log', 'ln', 'exp', 'theta', 'pi', 'dx', 'dt']
+    # 6. 数学関数のバックスラッシュ付与
+    funcs = ['sin', 'cos', 'tan', 'log', 'ln', 'exp', 'theta', 'pi']
     for f in funcs:
         t = re.sub(rf'\b{f}\b', rf'\\{f}', t)
     
@@ -67,7 +70,7 @@ def total_math_cleaner(text, is_block=False):
 
 def elegant_render(text):
     if not text or pd.isna(text): return ""
-    # 改行や特殊文字の整理
+    # 文中のノイズを除去
     raw = str(text).replace('\\n', '\n').replace('📝', '').strip()
     
     parts = re.split(r'(\(.*?\))', raw)
@@ -78,7 +81,7 @@ def elegant_render(text):
             inner = p[1:-1].strip()
             final_output.append(f" ${total_math_cleaner(inner)}$ ")
         else:
-            # 地文：sqrt, int などを記号化しつつ、謎のバックスラッシュを消去
+            # 地文：バックスラッシュを消しつつ、主要記号を置換
             cp = p.replace('\\', '').replace('int', '∫').replace('sqrt', '√').replace('times', '×').replace('circ', '°')
             # 数字を数式フォント化
             cp = re.sub(r'\b\d+(\.\d+)?\b', r' $\0$ ', cp)
@@ -105,7 +108,7 @@ st.title("理系には、勝ち方がある")
 subject = st.sidebar.selectbox("科目を選択", ["選択してください", "システム英単語", "入試数学の定石（数Ⅲ）", "入試数学の定石（ⅠAⅡB C）"])
 
 if subject == "選択してください":
-    st.info("サイドバーから科目を選択してください。")
+    st.info("サイドバーから科目を選択して開始してください。")
     st.stop()
 
 df_raw = load_data(subject)
@@ -124,12 +127,10 @@ if st.session_state.df.empty: st.stop()
 row = st.session_state.df.iloc[st.session_state.idx % len(st.session_state.df)]
 
 # ==========================================
-# 4. メイン表示
+# 4. 表示
 # ==========================================
 if subject != "システム英単語":
     st.markdown(f'<div class="card blue-card">【{row.get("category", "問題")}】</div>', unsafe_allow_html=True)
-    
-    # 積分記号などの表示
     st.latex(rf"\displaystyle {total_math_cleaner(row['question'], is_block=True)}")
 
     if not st.session_state.answered:
@@ -139,12 +140,8 @@ if subject != "システム英単語":
     else:
         st.markdown("---")
         st.info(f"💡 **攻略の定石**\n\n{elegant_render(row['strategy'])}")
-        
-        # 解答：ここで C が肩に乗らないよう total_math_cleaner が処理
         st.latex(rf"\displaystyle {total_math_cleaner(row['answer'], is_block=True)}")
-        
         if "explanation" in row and pd.notna(row["explanation"]):
             st.success(f"📝 **ポイント解説**\n\n{elegant_render(row['explanation'])}")
-        
         if st.button("次の問題へ"):
             st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
