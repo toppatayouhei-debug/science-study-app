@@ -6,7 +6,11 @@ import os
 # ==========================================
 # 1. デザイン設定
 # ==========================================
-st.set_page_config(page_title="理系には、勝ち方がある", page_icon="🧬", layout="centered")
+st.set_page_config(
+    page_title="理系には、勝ち方がある",
+    page_icon="🧬",
+    layout="centered"
+)
 
 st.markdown("""
 <style>
@@ -24,66 +28,61 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. 究極安定・単一行レンダリングエンジン
+# 2. 数式修正版（完全安定版）
 # ==========================================
-def total_math_cleaner(text):
-    """数式パーツをLaTeXへ安全変換"""
-    if not text:
+def clean_formula(text):
+    """CSVの数式文字列をLaTeXとして正しく整形"""
+    if pd.isna(text):
         return ""
 
     t = str(text).strip()
-    t = t.replace('$', '')
-    t = t.replace('displaystyle', '')
 
-    # 関数
-    funcs = ['sin', 'cos', 'tan', 'log', 'ln', 'exp']
-    for f in funcs:
-        t = re.sub(rf'\b{f}\b', rf'\\{f}', t)
+    # $ や \( \) を除去
+    t = t.replace("$", "")
+    t = t.replace(r"\(", "")
+    t = t.replace(r"\)", "")
+    t = t.replace(r"\[", "")
+    t = t.replace(r"\]", "")
 
-    # 記号
-    t = re.sub(r'\btheta\b', r'\\theta', t)
-    t = re.sub(r'\bpi\b', r'\\pi', t)
-    t = re.sub(r'\binfty\b', r'\\infty', t)
-    t = re.sub(r'\bint\b', r'\\int', t)
-    t = re.sub(r'\btimes\b', r'\\times', t)
-    t = re.sub(r'\bdots\b', r'\\dots', t)
+    # 基本変換
+    t = t.replace("theta", r"\theta")
+    t = t.replace("pi", r"\pi")
+    t = t.replace("sin", r"\sin")
+    t = t.replace("cos", r"\cos")
+    t = t.replace("tan", r"\tan")
+    t = t.replace("log", r"\log")
+    t = t.replace("ln", r"\ln")
+    t = t.replace("sqrt", r"\sqrt")
+    t = t.replace("int", r"\int")
+    t = t.replace("infty", r"\infty")
 
-    # sqrt(x)
-    t = re.sub(r'sqrt\s*\((.*?)\)', r'\\sqrt{\1}', t)
+    # 指数変換 x^2 → x^{2}
+    t = re.sub(r'([a-zA-Z0-9\)\}])\^([0-9a-zA-Z]+)', r'\1^{\2}', t)
 
-    # x^2 → x^{2}
-    t = re.sub(r'\^([0-9a-zA-Z]+)', r'^{\1}', t)
-
-    # 1/2 → \frac{1}{2}
-    t = re.sub(r'(?<![a-zA-Z0-9}])(\d+)\s*/\s*(\d+)', r'\\frac{\1}{\2}', t)
-
-    # dx
-    t = t.replace('dx', r'\,dx')
-    t = t.replace('dt', r'\,dt')
-
-    return t.strip()
+    return t
 
 
-def unified_render(text, is_main=False):
-    """日本語文中の(数式)だけLaTeX化"""
-    if not text or pd.isna(text):
+def text_with_inline_math(text):
+    """
+    日本語文中の x^2=9 のような式だけ数式化
+    """
+    if pd.isna(text):
         return ""
 
-    raw = str(text).replace('\u3000', ' ').replace('\xa0', ' ').strip()
+    s = str(text)
 
-    def repl(match):
-        inner = match.group(1).strip()
-        cleaned = total_math_cleaner(inner)
-        style = r"\displaystyle " if is_main else ""
-        return f"${style}{cleaned}$"
+    # x^2=9 や 2x+1=0 などを $...$ に変換
+    pattern = r'([a-zA-Z0-9+\-*/=^(){} ]*[=^][a-zA-Z0-9+\-*/=^(){} ]+)'
 
-    # ( ) 内のみ数式化
-    processed = re.sub(r'\((.*?)\)', repl, raw)
+    def repl(m):
+        expr = m.group(1).strip()
+        expr = clean_formula(expr)
+        return f"${expr}$"
 
-    return processed
+    return re.sub(pattern, repl, s)
 
 # ==========================================
-# 3. アプリロジック
+# 3. データ読み込み
 # ==========================================
 @st.cache_data
 def load_data(subject):
@@ -99,12 +98,16 @@ def load_data(subject):
 
     try:
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        df = pd.read_csv(os.path.join(current_dir, file_path), encoding="utf-8-sig")
+        full = os.path.join(current_dir, file_path)
+        df = pd.read_csv(full, encoding="utf-8-sig")
         df.columns = df.columns.str.strip()
         return df
     except:
         return pd.DataFrame()
 
+# ==========================================
+# 4. UI
+# ==========================================
 st.title("理系には、勝ち方がある")
 
 subject = st.sidebar.selectbox(
@@ -119,22 +122,28 @@ if subject == "選択してください":
 df_raw = load_data(subject)
 
 cats = ["すべて"] + list(
-    df_raw["category"].unique()
+    df_raw["category"].dropna().unique()
     if "category" in df_raw.columns
-    else df_raw["level"].unique()
+    else df_raw["level"].dropna().unique()
 )
 
 choice = st.sidebar.radio("分野・レベル選択", cats)
 
-df_filtered = df_raw if choice == "すべて" else df_raw[
-    (df_raw.get("category") == choice) |
-    (df_raw.get("level") == choice)
-]
+if choice == "すべて":
+    df_filtered = df_raw
+else:
+    if "category" in df_raw.columns:
+        df_filtered = df_raw[df_raw["category"] == choice]
+    else:
+        df_filtered = df_raw[df_raw["level"] == choice]
 
-current_key = f"{subject}_{choice}"
+# ==========================================
+# 5. セッション管理
+# ==========================================
+key = f"{subject}_{choice}"
 
-if "session_key" not in st.session_state or st.session_state.session_key != current_key:
-    st.session_state.session_key = current_key
+if "session_key" not in st.session_state or st.session_state.session_key != key:
+    st.session_state.session_key = key
     st.session_state.df = df_filtered.sample(frac=1).reset_index(drop=True)
     st.session_state.idx = 0
     st.session_state.answered = False
@@ -147,20 +156,19 @@ row = st.session_state.df.iloc[
 ]
 
 # ==========================================
-# 4. 表示
+# 6. 数学表示
 # ==========================================
 if subject != "システム英単語":
 
     st.markdown(
-        f'<div class="card blue-card">【{row.get("category", "問題")}】</div>',
+        f'<div class="card blue-card">【{row["category"]}】</div>',
         unsafe_allow_html=True
     )
 
-    # 問題文サイズ修正（通常サイズ）
-    st.markdown(unified_render(row["question"], is_main=True))
+    # 問題文（サイズ普通）
+    st.markdown(text_with_inline_math(row["question"]))
 
     if not st.session_state.answered:
-
         if st.button("解法・定石を確認する"):
             st.session_state.answered = True
             st.rerun()
@@ -168,16 +176,15 @@ if subject != "システム英単語":
     else:
         st.markdown("---")
 
-        st.info(
-            f"💡 **攻略の定石**\n\n{unified_render(row['strategy'])}"
-        )
+        st.info("💡 攻略の定石\n\n" + str(row["strategy"]))
 
         st.markdown("##### 【解答】")
-        st.markdown(unified_render(row["answer"], is_main=True))
+        st.latex(clean_formula(row["answer"]))
 
         if "explanation" in row and pd.notna(row["explanation"]):
             st.success(
-                f"📝 **ポイント解説**\n\n{unified_render(row['explanation'])}"
+                "📝 ポイント解説\n\n" +
+                text_with_inline_math(row["explanation"])
             )
 
         if st.button("次の問題へ"):
