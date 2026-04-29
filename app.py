@@ -24,20 +24,28 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. 徹底ノイズ除去エンジン（対「？」最終兵器）
+# 2. 徹底クリーンアップエンジン（最終・ theta & 「？」抹殺版）
 # ==========================================
 def total_math_cleaner(text, is_block=False):
     if not text or pd.isna(text): return ""
     
-    # 1. 特殊な空白文字やゴミを物理的に抹消
     t = str(text)
-    # \xa0 (Non-breaking space), \u3000 (全角スペース), \x00 (Null) などを一掃
+    # 1. 物理的なゴミ・特殊文字を極限まで抹消
     t = t.replace('\u3000', ' ').replace('\xa0', ' ').replace('\x00', ' ').replace('\ufeff', '')
-    
-    # 2. 数式として不要なバックスラッシュを削除し、再構成
     t = t.replace('\\ ', ' ').replace('\\', '').replace('displaystyle', '').replace('$', '')
 
-    # 3. 基本記号の変換
+    # 2. ギリシャ文字・数学関数の置換（ここを最優先に）
+    # theta, pi 等を確実に \theta, \pi へ
+    greek_and_funcs = {
+        'theta': r'\theta', 'pi': r'\pi', 'alpha': r'\alpha', 'beta': r'\beta', 
+        'gamma': r'\gamma', 'sin': r'\sin', 'cos': r'\cos', 'tan': r'\tan', 
+        'log': r'\log', 'ln': r'\ln', 'exp': r'\exp'
+    }
+    for k, v in greek_and_funcs.items():
+        # 単語の境界を意識しつつ置換
+        t = re.sub(rf'\b{k}\b', v, t)
+
+    # 3. 記号・演算子の変換
     t = t.replace('dx', r'\,dx').replace('dt', r'\,dt')
     t = t.replace('int', r'\int ')
     t = t.replace('vec', r'\vec ')
@@ -47,26 +55,20 @@ def total_math_cleaner(text, is_block=False):
     t = t.replace('infty', r'\infty ')
     t = t.replace('circ', r'^{\circ}')
 
-    # 4. 指数 (肩) の隔離
+    # 4. 構造修正 (指数・積分定数)
     t = re.sub(r'\^([0-9a-zA-Z]+)', r'^{\1}', t)
-    
-    # 5. 積分定数周り
     t = t.replace('+C', ' + C').replace('-C', ' - C')
 
-    # 6. 分数（ブロック表示用）
+    # 5. 分数（ブロック表示用）
     if is_block:
         t = re.sub(r'(\d+)\s*/\s*(\d+)', r'\\frac{\1}{\2}', t)
 
-    # 7. 数学関数
-    funcs = ['sin', 'cos', 'tan', 'log', 'ln', 'exp', 'theta', 'pi']
-    for f in funcs:
-        t = re.sub(rf'\b{f}\b', rf'\\{f}', t)
-    
-    # 8. 虚数単位
+    # 6. 虚数単位
     t = re.sub(r'(\d+|\b)i\b', r'\1 i ', t)
 
-    # 最終チェック：LaTeXでエラーになる制御文字を完全に消す
-    t = "".join(char for char in t if ord(char) < 128 or char in '^{}_\\')
+    # 7. 「？」の原因となる非アスキー文字を物理的に完全消去
+    # LaTeXで許容される文字記号のみを通過させる（ASCII: 32-126）
+    t = "".join(char for char in t if 32 <= ord(char) <= 126 or char in '^{}_\\')
     
     return t.strip()
 
@@ -84,7 +86,14 @@ def elegant_render(text):
             final_output.append(f" ${total_math_cleaner(inner)}$ ")
         else:
             # 地文：バックスラッシュを消し、主要記号を置換
-            cp = p.replace('\\', '').replace('int', '∫').replace('sqrt', '√').replace('times', '×').replace('circ', '°')
+            cp = p.replace('\\', '')
+            replace_map = {
+                'theta': 'θ', 'pi': 'π', 'int': '∫', 'vec': '→', 
+                'sqrt': '√', 'times': '×', 'dots': '…', 'circ': '°'
+            }
+            for k, v in replace_map.items():
+                cp = cp.replace(k, v)
+            
             # 数字を数式フォント化
             cp = re.sub(r'\b\d+(\.\d+)?\b', r' $\0$ ', cp)
             final_output.append(cp)
@@ -133,6 +142,7 @@ row = st.session_state.df.iloc[st.session_state.idx % len(st.session_state.df)]
 # ==========================================
 if subject != "システム英単語":
     st.markdown(f'<div class="card blue-card">【{row.get("category", "問題")}】</div>', unsafe_allow_html=True)
+    # 問題文のレンダリング
     st.latex(rf"\displaystyle {total_math_cleaner(row['question'], is_block=True)}")
 
     if not st.session_state.answered:
