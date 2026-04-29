@@ -24,59 +24,45 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. 徹底クリーンアップエンジン（究極安定版）
+# 2. 徹底安定化エンジン
 # ==========================================
-def total_math_cleaner(text):
-    """数式パートのみを LaTeX 化する。日本語は絶対に通さない。"""
+def clean_math_only(text):
+    """数式パーツ（カッコの中身）からノイズを除去して純粋なLaTeXにする"""
     if not text: return ""
-    
-    # バックスラッシュ等のノイズをリセット
     t = str(text).replace('\\', '').replace('displaystyle', '').replace('$', '')
     
-    # 1. 記号の単純置換 (replace のみで安全に)
+    # 記号置換
     t = t.replace('theta', r'\theta ').replace('pi', r'\pi ')
     t = t.replace('sin', r'\sin ').replace('cos', r'\cos ').replace('tan', r'\tan ')
     t = t.replace('int', r'\int ').replace('vec', r'\vec ').replace('sqrt', r'\sqrt ')
     t = t.replace('times', r'\times ').replace('dots', r'\dots ').replace('infty', r'\infty ')
     t = t.replace('circ', r'^{\circ}').replace('dx', r'\,dx').replace('dt', r'\,dt')
     
-    # 2. 構造の調整 (肩)
+    # 指数
     t = re.sub(r'\^([0-9a-zA-Z]+)', r'^{\1}', t)
     
-    # 3. LaTeXで表示できない「？」の原因（特殊空白など）を削除
-    # ASCII文字(32-126)と、LaTeX制御用の記号のみを許可
+    # LaTeXで許容される文字のみ残す（ASCII: 32-126）
     t = "".join(char for char in t if 32 <= ord(char) <= 126 or char in '^{}_\\')
-    
     return t.strip()
 
-def elegant_render(text, is_question=False):
-    """
-    文章全体を解析。
-    - ( ) で囲まれた部分は LaTeX 数式として処理。
-    - ( ) の外側（日本語）はそのまま維持。
-    """
-    if not text or pd.isna(text): return ""
+def split_and_render(text, container_type="info"):
+    """文章と数式を分離してレンダリングする"""
+    if not text or pd.isna(text): return
     
-    raw = str(text).replace('\\n', '\n').strip()
+    # 特殊な空白文字（文字化けの元）を削除
+    raw = str(text).replace('\u3000', ' ').replace('\xa0', ' ').replace('\\n', '\n').strip()
     
     # カッコ ( ) で分割
     parts = re.split(r'(\(.*?\))', raw)
-    processed_parts = []
     
     for p in parts:
         if p.startswith('(') and p.endswith(')'):
-            # カッコの中身（数式）
-            inner = p[1:-1].strip()
-            # 独立行として大きく見せたい場合は \displaystyle を付与
-            prefix = r"\displaystyle " if is_question else ""
-            processed_parts.append(f"${prefix}{total_math_cleaner(inner)}$")
-        else:
-            # カッコの外（日本語の指示文や解説）
-            # ここで日本語をフィルタリングしてはいけない（「？」の置換のみ行う）
-            clean_jp = p.replace('\u3000', ' ').replace('\xa0', ' ')
-            processed_parts.append(clean_jp)
-            
-    return "".join(processed_parts)
+            # 数式パートは latex で表示
+            st.latex(rf"\displaystyle {clean_math_only(p[1:-1])}")
+        elif p.strip():
+            # 地文は markdown で表示（数字を $ $ で囲む）
+            txt = re.sub(r'\b\d+(\.\d+)?\b', r'$\0$', p)
+            st.write(txt)
 
 # ==========================================
 # 3. アプリロジック
@@ -97,7 +83,7 @@ st.title("理系には、勝ち方がある")
 subject = st.sidebar.selectbox("科目を選択", ["選択してください", "システム英単語", "入試数学の定石（数Ⅲ）", "入試数学の定石（ⅠAⅡB C）"])
 
 if subject == "選択してください":
-    st.info("左のメニューから開始してください。")
+    st.info("サイドバーから開始してください。")
     st.stop()
 
 df_raw = load_data(subject)
@@ -116,13 +102,13 @@ if st.session_state.df.empty: st.stop()
 row = st.session_state.df.iloc[st.session_state.idx % len(st.session_state.df)]
 
 # ==========================================
-# 4. 表示
+# 4. メイン表示
 # ==========================================
 if subject != "システム英単語":
     st.markdown(f'<div class="card blue-card">【{row.get("category", "問題")}】</div>', unsafe_allow_html=True)
     
-    # 問題文：日本語と数式を適切に混ぜて表示
-    st.markdown(f"#### {elegant_render(row['question'], is_question=True)}", unsafe_allow_html=True)
+    # 問題の表示
+    split_and_render(row['question'])
 
     if not st.session_state.answered:
         if st.button("解法・定石を確認する"):
@@ -130,13 +116,15 @@ if subject != "システム英単語":
             st.rerun()
     else:
         st.markdown("---")
-        st.info(f"💡 **攻略の定石**\n\n{elegant_render(row['strategy'])}")
+        with st.expander("💡 攻略の定石", expanded=True):
+            split_and_render(row['strategy'])
         
         st.markdown("##### 【解答】")
-        st.markdown(f"#### {elegant_render(row['answer'], is_question=True)}", unsafe_allow_html=True)
+        split_and_render(row['answer'])
         
         if "explanation" in row and pd.notna(row["explanation"]):
-            st.success(f"📝 **ポイント解説**\n\n{elegant_render(row['explanation'])}")
+            with st.expander("📝 ポイント解説", expanded=False):
+                split_and_render(row['explanation'])
         
         if st.button("次の問題へ"):
             st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
