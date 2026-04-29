@@ -5,7 +5,7 @@ import re
 import os
 
 # ==========================================
-# 1. デザイン設定 (変更なし)
+# 1. デザイン設定 (形式・配色維持)
 # ==========================================
 st.set_page_config(
     page_title="理系には、勝ち方がある",
@@ -37,65 +37,64 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. 便利関数 (構造的修正版)
+# 2. 便利関数 (徹底修正版)
 # ==========================================
 def clean_math(text):
-    """数式内の記号をLaTeX形式に完全変換"""
+    """数式生データを純粋なLaTeXに変換"""
     if not text: return ""
     text = str(text)
     
-    # 生データの不要なタグ・エスケープを清掃
-    text = text.replace(r'\\', '\\').replace(r'\displaystyle', '')
+    # 生データのゴミ排除
+    text = text.replace(r'\displaystyle', '').replace(r'\\', '\\')
     text = text.replace(r'\(', '').replace(r'\)', '').replace(r'\[', '').replace(r'\]', '').replace('$', '')
 
-    # 累乗: x^2 -> x^{2}
-    text = re.sub(r'\^([0-9a-zA-Z]+)', r'^{\1}', text)
+    # 指数: x^2 -> x^{2} / x^10 -> x^{10}
+    # 数値だけでなくアルファベットや括弧を含む累乗に対応
+    text = re.sub(r'\^([0-9a-zA-Z\(\)\{\}\-]+)', r'^{\1}', text)
     
     # 平方根: sqrt(x) -> \sqrt{x}
     text = re.sub(r'sqrt\((.*?)\)', r'\\sqrt{\1}', text)
 
-    # 関数
-    funcs = ['sin', 'cos', 'tan', 'log', 'ln', 'exp']
+    # 三角関数・対数関数
+    funcs = ['sin', 'cos', 'tan', 'log', 'ln', 'exp', 'theta', 'pi']
     for f in funcs:
-        text = re.sub(rf'\b{f}\b', rf'\\{f}', text)
+        # すでに \ が付いている場合は二重にしない
+        text = re.sub(rf'(?<!\\)\b{f}\b', rf'\\{f}', text)
 
-    # 分数 1/2 -> \frac{1}{2}
+    # 分数: 1/2 -> \frac{1}{2}
     text = re.sub(r'(\d+)\s*/\s*(\d+)', r'\\frac{\1}{\2}', text)
 
     return text.strip()
 
 def render_explanation(text):
-    """
-    数式とテキストを分離し、座標や等号のズレを修正してレンダリング
-    """
+    """解説文のレンダリング（アイコン重複防止・数式完全化）"""
     if pd.isna(text): return
     
-    # 1. 改行コードの正規化とテキストのクリーンアップ
+    # CSV特有のリテラル改行を物理改行に変換し、前後の不要文字をカット
     raw_text = str(text).replace('\\n', '\n').strip()
     
-    # 2. 数式抽出ロジックの改善
-    # カンマを含む座標 (6, 10) などが分割されないよう、
-    # 括弧の対を正しく抽出する
-    parts = re.split(r'(\(.*?\))', raw_text, flags=re.DOTALL)
+    # 分割（カッコ内の数式、または改行で区切る）
+    parts = re.split(r'(\(.*?\))', raw_text)
 
     for part in parts:
         if not part: continue
+        p = part.strip()
         
-        # 括弧で囲まれている場合を数式として判定
-        if part.startswith('(') and part.endswith(')'):
-            formula = part[1:-1].strip()
+        # アイコン(📝)がデータ自体に含まれている場合の重複除去
+        p = p.replace('📝', '').strip()
+        if not p: continue
+
+        if p.startswith('(') and p.endswith(')'):
+            # --- 数式モード ---
+            formula = p[1:-1].strip()
             if formula:
-                # 数式として表示。等号(=)などが含まれてもst.latexなら中央揃えで綺麗に出る
                 st.latex(rf"\displaystyle {clean_math(formula)}")
         else:
-            # テキスト部分：残っている制御文字を消去して表示
-            # 文中の「\」単体などは表示しない
-            clean_part = part.replace('\\', '').replace('displaystyle', '').strip()
-            if clean_part:
-                # 改行が含まれている場合は分割してwriteすることで、Streamlitの自動余白を活かす
-                for line in clean_part.split('\n'):
-                    if line.strip():
-                        st.write(line.strip())
+            # --- テキストモード ---
+            # テキスト行に紛れ込んだLaTeXコマンド(\)を完全に消去
+            clean_text = p.replace('\\', '').replace('displaystyle', '').strip()
+            if clean_text:
+                st.write(clean_text)
 
 @st.cache_data
 def load_data(subject):
