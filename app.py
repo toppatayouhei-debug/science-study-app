@@ -25,56 +25,67 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. 数式処理エンジン (安全第一版)
+# 2. 徹底書き換えエンジン
 # ==========================================
-def fix_math_format(text, is_block=False):
+def total_math_cleaner(text, is_block=False):
+    """
+    あらゆる数式生データをLaTeXに変換。
+    カッコの有無を問わず、キーワードを見つけ次第変換する。
+    """
     if not text or pd.isna(text): return ""
-    # 生データの不要なバックスラッシュを削除
     t = str(text).replace('\\', '').replace('displaystyle', '')
+
+    # 1. 平方根 (sqrt3 や sqrt(3) を \sqrt{3} に)
+    # 順序が大事：まずはカッコありを処理
+    t = re.sub(r'sqrt\s*\((.*?)\)', r'\\sqrt{\1}', t)
+    # 次にカッコなし単語を処理
+    t = re.sub(r'sqrt\s*([0-9a-zA-Z]+)', r'\\sqrt{\1}', t)
     
-    # 1. 平方根
-    t = re.sub(r'sqrt\s*\(?([0-9a-zA-Z]+)\)?', r'\\sqrt{\1}', t)
-    
-    # 2. 指数（肩）の修正
-    t = re.sub(r'\^([0-9a-zA-Z]+)', r'^{\1}', t)
-    
-    # 3. 組合せ・度数
+    # 2. 指数 (肩) のガード: x^2 -> x^{2}
+    # 後ろに続く式を巻き込まないよう、直後のカタマリだけを {} に入れる
+    t = re.sub(r'\^([0-9a-zA-Z\+ \-]+)', lambda m: f"^{{{m.group(1).split('+')[0].split('-')[0].split('=')[0].strip()}}}{m.group(1)[len(m.group(1).split('+')[0].split('-')[0].split('=')[0].strip()):]}", t)
+
+    # 3. 組合せ、度数
     t = t.replace('circ', r'^{\circ}')
     t = re.sub(r'([nN\d]+)?C([rR\d]+)', r'{}_{\1}C_{\2}', t)
 
-    # 4. 分数 (ブロック表示のみ)
+    # 4. 分数 (独立ブロックのみ)
     if is_block:
         t = re.sub(r'(\d+)\s*/\s*(\d+)', r'\\frac{\1}{\2}', t)
 
     # 5. 数学関数へのバックスラッシュ付与
-    funcs = ['sin', 'cos', 'tan', 'log', 'ln', 'exp', 'theta', 'pi', 'alpha', 'beta', 'gamma']
+    funcs = ['sin', 'cos', 'tan', 'log', 'ln', 'exp', 'theta', 'pi', 'alpha', 'beta', 'i']
     for f in funcs:
         t = re.sub(rf'\b{f}\b', rf'\\{f}', t)
     
-    # 虚数単位 i を安全にイタリック化
-    # エラーの原因となった \mathit を避け、単純な $i$ 扱いに寄せる
-    if not is_block:
-        t = re.sub(r'\b(i)\b', r'i', t) # LaTeX内ではデフォルトでイタリックになるためシンプルに
-
     return t.strip()
 
-def render_mixed(text):
+def elegant_render(text):
+    """
+    文章中の ( ) を探し出し、その中身を LaTeX 化する。
+    また、( ) の外側にある sqrt も文字化けしないように √ に置換する。
+    """
     if not text or pd.isna(text): return ""
     raw = str(text).replace('\\n', '\n').replace('📝', '').strip()
     
-    # ( ... ) で囲まれた部分を数式として抽出
+    # 文章をカッコで分割
     parts = re.split(r'(\(.*?\))', raw)
-    res = ""
+    final_output = []
+    
     for p in parts:
         if p.startswith('(') and p.endswith(')'):
-            res += f" ${fix_math_format(p[1:-1])}$ "
+            # 数式パート
+            inner = p[1:-1].strip()
+            final_output.append(f"${total_math_cleaner(inner)}$")
         else:
-            # 地文パート
-            res += p.replace('\\', '').replace('circ', '°').replace('sqrt', '√')
-    return res
+            # 地文パート：バックスラッシュを消しつつ、sqrt を √ に、circ を ° に置換
+            clean_p = p.replace('\\', '').replace('sqrt', '√').replace('circ', '°')
+            final_output.append(clean_p)
+            
+    return "".join(final_output)
 
 # ==========================================
-# 3. データ読み込み & サイドバー制御
+# 3. アプリケーションロジック (サイドバー連動版)
 # ==========================================
 @st.cache_data
 def load_data(subject):
@@ -92,12 +103,12 @@ st.title("理系には、勝ち方がある")
 subject = st.sidebar.selectbox("科目を選択", ["選択してください", "システム英単語", "入試数学の定石（数Ⅲ）", "入試数学の定石（ⅠAⅡB C）"])
 
 if subject == "選択してください":
-    st.info("左のサイドバーから開始してください。")
+    st.info("サイドバーから科目と分野を選んでください。")
     st.stop()
 
 df_raw = load_data(subject)
 
-# 分野フィルタリング
+# 分野選択
 if subject == "システム英単語":
     choice = st.sidebar.radio("レベル", ["すべて"] + list(df_raw["level"].unique()))
     df_filtered = df_raw if choice == "すべて" else df_raw[df_raw["level"] == choice]
@@ -105,15 +116,14 @@ else:
     choice = st.sidebar.radio("分野", ["すべて"] + list(df_raw["category"].unique()))
     df_filtered = df_raw if choice == "すべて" else df_raw[df_raw["category"] == choice]
 
-# セッション状態の管理
-filter_key = f"{subject}_{choice}"
-if "current_key" not in st.session_state or st.session_state.current_key != filter_key:
-    st.session_state.current_key = filter_key
+# 状態の管理（サイドバーで切り替えたらリセット）
+current_key = f"{subject}_{choice}"
+if "session_key" not in st.session_state or st.session_state.session_key != current_key:
+    st.session_state.session_key = current_key
     st.session_state.df = df_filtered.sample(frac=1).reset_index(drop=True)
     st.session_state.idx = 0
     st.session_state.answered = False
 
-if st.session_state.df.empty: st.stop()
 row = st.session_state.df.iloc[st.session_state.idx % len(st.session_state.df)]
 
 # ==========================================
@@ -121,17 +131,23 @@ row = st.session_state.df.iloc[st.session_state.idx % len(st.session_state.df)]
 # ==========================================
 if subject != "システム英単語":
     st.markdown(f'<div class="card blue-card">【{row["category"]}】</div>', unsafe_allow_html=True)
-    st.latex(rf"\displaystyle {fix_math_format(row['question'], is_block=True)}")
+    # 問題文 (st.latex を使用)
+    st.latex(rf"\displaystyle {total_math_cleaner(row['question'], is_block=True)}")
 
     if not st.session_state.answered:
         if st.button("確認する"):
             st.session_state.answered = True
             st.rerun()
     else:
-        st.info(f"💡 **攻略の定石**\n\n{render_mixed(row['strategy'])}")
-        st.latex(rf"\displaystyle {fix_math_format(row['answer'], is_block=True)}")
+        st.markdown("---")
+        st.info(f"💡 **攻略の定石**\n\n{elegant_render(row['strategy'])}")
+        
+        st.markdown("##### 【解答】")
+        st.latex(rf"\displaystyle {total_math_cleaner(row['answer'], is_block=True)}")
+
         if "explanation" in row and pd.notna(row["explanation"]):
-            st.success(f"📝 **ポイント解説**\n\n{render_mixed(row['explanation'])}")
+            st.success(f"📝 **ポイント解説**\n\n{elegant_render(row['explanation'])}")
+
         if st.button("次へ"):
             st.session_state.idx += 1
             st.session_state.answered = False
