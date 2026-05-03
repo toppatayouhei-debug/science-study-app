@@ -120,7 +120,7 @@ if subject == "システム英単語":
     sentence = re.sub(re.escape(word), f"<span class='highlight'>{word}</span>", str(row["sentence"]), flags=re.IGNORECASE)
     st.markdown(f'<div class="card orange-card">{sentence}</div>', unsafe_allow_html=True)
     
-    # 【追加文言】
+    # 【警告文】問題表示の直後
     st.warning("⚠️ シス単本体をメインにしましょう。情報量が全然違います。")
 
     if "choices" not in st.session_state:
@@ -156,16 +156,16 @@ elif subject == "暗唱例文集":
     disp_text = re.sub(r'\*\*(.*?)\*\*', "[ ____ ]", str(row["English"])) if is_hint_mode else "（英文を思い出してください）"
     st.markdown(f'<div class="card orange-card">【日本語】<br><b>{row["japanese"]}</b><hr>【英文】<br>{disp_text}</div>', unsafe_allow_html=True)
 
+    # 【注意書き】解答前に表示
+    if is_hint_mode:
+        st.info("💡 [　　]の中は１語とは限りません")
+
     if not st.session_state.answered:
         if st.button("答えを確認する"): st.session_state.answered = True; st.rerun()
     else:
         ans_highlight = re.sub(r'\*\*(.*?)\*\*', r'<span style="color:#e91e63; font-weight:800; border-bottom:2px solid;">\1</span>', str(row["English"]))
-        st.markdown(f'<div class="card" style="background:#fff9db !important;">【正解】<br><span style="font-size:1.1rem;">{ans_highlight}</span></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="card" style="background:#fff9db !important;">【正解】<br><span style="font-size:1.1rem; font-family:serif;">{ans_highlight}</span></div>', unsafe_allow_html=True)
         
-        # 【追加文言：空欄補充モード時のみ】
-        if is_hint_mode:
-            st.info("💡 [　　]の中は１語とは限りません")
-            
         play_voice(str(row["English"]).replace("**", ""), "音声")
         if st.button("次の問題へ"):
             st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
