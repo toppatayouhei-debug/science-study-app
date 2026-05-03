@@ -57,29 +57,45 @@ st.markdown("""
 .audio-container { background-color: #f8f9fa; border-radius: 15px; padding: 10px; margin-top: 10px; display: flex; align-items: center; border: 1px solid #ddd; }
 .audio-text { font-size: 0.85rem; color: #ff9800; font-weight: bold; margin-right: auto; padding-left: 5px; }
 
-/* 本文エリア */
-.content-area { margin-bottom: 15px; padding-left: 5px; }
+/* 本文エリア（日本語フォントを維持） */
+.content-area { margin-bottom: 15px; padding-left: 5px; font-size: 1.05rem; }
 </style>
 """, unsafe_allow_html=True)
 
 # ==================================================
-# 3. ユーティリティ関数
+# 3. ユーティリティ関数（精密レンダリング）
 # ==================================================
 
-def render_text(text):
-    """シンプルな化学式置換（崩れにくい初期版に近いロジック）"""
+def render_chem_text(text):
+    """
+    文章内の化学式や数値(10^23等)だけを特定して個別にLaTeX化する。
+    日本語部分を破壊しない。
+    """
     if pd.isna(text): return ""
     t = str(text)
-    # 化学式の下付き数字を置換 (例: H2O -> H₂O)
-    t = re.sub(r'([A-Z][a-z]?)(\d+)', r'\1_{\2}', t)
-    # イオンの上付きを置換 (例: ^2- -> ^{2-})
-    t = re.sub(r'\^(\d*[\+\-])', r'^{\1}', t)
-    
-    # 文章の中に数式が含まれる可能性を考慮し、全体を$で囲むのではなく、
-    # 置換が発生した箇所があればその文字列をLaTeXとして表示
-    if "_{" in t or "^{" in t:
-        return f"${t}$"
-    return t
+
+    def process_part(match):
+        part = match.group(0)
+        # すでに $ で囲まれている、あるいは漢字/かなを含む場合はそのまま
+        if "$" in part or re.search(r'[ぁ-んァ-ヶ亜-熙]', part):
+            return part
+        
+        # 化学式の下付き数字を置換 (H2O -> H_{2}O)
+        res = re.sub(r'([A-Z][a-z]?)(\d+)', r'\1_{\2}', part)
+        # イオンの上付きを置換 (^2- -> ^{2-})
+        res = re.sub(r'\^([\d\+\-\*x×・]+)', r'^{\1}', res)
+        # 数値の指数表示を置換 (10^23 -> 10^{23})
+        res = re.sub(r'(\d+)\^(\d+)', r'\1^{\2}', res)
+        
+        # 置換が発生した、あるいは特定の記号を含む場合のみ $ で囲む
+        if res != part or any(c in part for c in "^+-"):
+            return f"${res}$"
+        return part
+
+    # 化学式・数値・単位っぽそうな英数記号の塊を抽出して処理
+    # ( ) や日本語を避けて、英数字と特定の記号の連続を見つける
+    result = re.sub(r'[A-Za-z0-9\.\^\+\-\*×//・]+', process_part, t)
+    return result
 
 def play_voice(text, label="音声を聴く"):
     try:
@@ -227,13 +243,15 @@ elif subject == "システム英単語":
 
 elif subject == "化学（一問一答）":
     st.markdown(f'<div class="card green-card">【{row["chapter"]}】</div>', unsafe_allow_html=True)
-    st.write(render_text(row["question"]))
+    # 精密なレンダリングを適用
+    st.markdown(f'<div class="content-area">{render_chem_text(row["question"])}</div>', unsafe_allow_html=True)
     
     if not st.session_state.answered:
         if st.button("答えを確認する"): st.session_state.answered = True; st.rerun()
     else:
         st.markdown('<div class="mini-tag ans-tag">正解</div>', unsafe_allow_html=True)
-        st.write(render_text(row["answer"]))
+        st.markdown(f'<div class="content-area">{render_chem_text(row["answer"])}</div>', unsafe_allow_html=True)
         st.markdown('<div class="mini-tag exp-tag">解説</div>', unsafe_allow_html=True)
-        st.write(render_text(row["explanation"]))
+        st.markdown(f'<div class="content-area" style="font-size:0.95rem; color:#444;">{render_chem_text(row["explanation"])}</div>', unsafe_allow_html=True)
+        
         if st.button("✅ 次へ"): st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
