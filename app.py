@@ -77,7 +77,9 @@ def load_data(subject):
     try:
         base = os.path.dirname(os.path.abspath(__file__))
         path = os.path.join(base, file_name)
-        return pd.read_csv(path, encoding="utf-8-sig")
+        df = pd.read_csv(path, encoding="utf-8-sig")
+        df.columns = df.columns.str.strip()
+        return df
     except: return pd.DataFrame()
 
 # ==========================================
@@ -94,15 +96,26 @@ if subject == "選択してください":
 df_raw = load_data(subject)
 filter_label = "すべて"
 
-# フィルタ設定
+# フィルタ設定（科目ごとに分岐）
 if subject == "システム英単語":
     lv_map = {"すべて": "All", "Fundamental (1-600)": "Fundamental", "Essential (601-1200)": "Essential", "Advanced (1201-1700)": "Advanced", "Final (1701-2027)": "Final"}
     filter_label = st.sidebar.radio("レベル選択", list(lv_map.keys()))
     current_filter, filter_col = lv_map[filter_label], "level"
-elif "category" in df_raw.columns:
-    cats = df_raw["category"].unique().tolist()
-    filter_label = st.sidebar.radio("分野選択", ["すべて"] + cats)
-    current_filter, filter_col = filter_label, "category"
+
+elif subject == "暗唱例文集":
+    # 例文集の章立て（categoryカラムを利用）を表示
+    if "category" in df_raw.columns:
+        cats = sorted(df_raw["category"].unique().tolist())
+        filter_label = st.sidebar.radio("章を選択", ["すべて"] + cats)
+        current_filter, filter_col = filter_label, "category"
+    else:
+        current_filter, filter_col = "すべて", "category"
+
+else: # 数学
+    if "category" in df_raw.columns:
+        cats = df_raw["category"].unique().tolist()
+        filter_label = st.sidebar.radio("分野選択", ["すべて"] + cats)
+        current_filter, filter_col = filter_label, "category"
 
 # セッション初期化
 if "current_sub" not in st.session_state or st.session_state.current_sub != subject or st.session_state.get("last_filter") != filter_label:
@@ -112,6 +125,10 @@ if "current_sub" not in st.session_state or st.session_state.current_sub != subj
     st.session_state.idx, st.session_state.answered, st.session_state.study_mode = 0, False, "全文暗唱"
     if "choices" in st.session_state: del st.session_state["choices"]
 
+if st.session_state.df.empty:
+    st.error("該当データがありません。")
+    st.stop()
+
 row = st.session_state.df.iloc[st.session_state.idx % len(st.session_state.df)]
 
 # --- システム英単語表示 ---
@@ -119,8 +136,6 @@ if subject == "システム英単語":
     word = str(row["question"])
     sentence = re.sub(re.escape(word), f"<span class='highlight'>{word}</span>", str(row["sentence"]), flags=re.IGNORECASE)
     st.markdown(f'<div class="card orange-card">{sentence}</div>', unsafe_allow_html=True)
-    
-    # 【警告文】問題表示の直後
     st.warning("⚠️ シス単本体をメインにしましょう。情報量が全然違います。")
 
     if "choices" not in st.session_state:
@@ -156,7 +171,6 @@ elif subject == "暗唱例文集":
     disp_text = re.sub(r'\*\*(.*?)\*\*', "[ ____ ]", str(row["English"])) if is_hint_mode else "（英文を思い出してください）"
     st.markdown(f'<div class="card orange-card">【日本語】<br><b>{row["japanese"]}</b><hr>【英文】<br>{disp_text}</div>', unsafe_allow_html=True)
 
-    # 【注意書き】解答前に表示
     if is_hint_mode:
         st.info("💡 [　　]の中は１語とは限りません")
 
