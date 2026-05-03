@@ -18,7 +18,7 @@ st.set_page_config(
 )
 
 # ==================================================
-# 2. CSS
+# 2. CSS (文系版の洗練されたパーツ + 化学用新タグ)
 # ==================================================
 st.markdown("""
 <style>
@@ -27,27 +27,44 @@ st.markdown("""
 .main-title { text-align:center; font-size:1.8rem; font-weight:900; margin-bottom:0.2rem; color:#1e3a8a; }
 .sub-title { text-align:center; color:#666; font-size:0.85rem; margin-bottom:1.5rem; }
 
+/* 問題カード */
 .card { background:white; padding:22px; border-radius:18px; box-shadow:0 8px 20px rgba(0,0,0,0.06); margin-bottom:1rem; line-height:1.7; font-size:1.05rem; color:#111; }
 .orange-card { border-left: 8px solid #ff9800; } 
 .green-card  { border-left: 8px solid #4caf50; }
 .highlight { color: #ff9800 !important; font-weight: bold !important; }
 
+/* 説明ボックス */
 .description-box { background-color: #ffffff; padding: 20px; border-radius: 12px; border: 1px solid #e5e7eb; margin-bottom: 25px; line-height: 1.6; }
-.exp-card { background: #fff9db; padding: 18px; border-radius: 14px; border: 1px dashed #fab005; margin-top: 10px; font-size: 0.95rem; color: #333; }
-.chem-exp-card { background: #e8f5e9; padding: 18px; border-radius: 14px; border: 1px dashed #4caf50; margin-top: 10px; font-size: 0.95rem; }
 
+/* 小さなタイトルタグ（化学用） */
+.mini-tag {
+    display: inline-block;
+    padding: 4px 14px;
+    border-radius: 10px;
+    font-size: 0.85rem;
+    font-weight: 800;
+    margin-bottom: 10px;
+    margin-top: 15px;
+}
+.ans-tag { background-color: #4caf50; color: white; }
+.exp-tag { background-color: #f1f8e9; color: #2e7d32; border: 1px solid #4caf50; }
+.english-ans-tag { background-color: #fff9db; color: #fab005; border: 1px solid #fab005; }
+
+/* ボタン */
 .stButton button { width: 100%; border-radius: 16px; font-size: 1.1rem; font-weight: 800; min-height: 55px; transition: 0.2s; }
 .tango-btn button { background-color: #fff4e6 !important; color: #ff9800 !important; border: 2px solid #ff9800 !important; }
 
+/* 音声再生 */
 .audio-container { background-color: #f8f9fa; border-radius: 15px; padding: 10px; margin-top: 10px; display: flex; align-items: center; border: 1px solid #ddd; }
 .audio-text { font-size: 0.85rem; color: #ff9800; font-weight: bold; margin-right: auto; padding-left: 5px; }
 
-.chem-text { font-size: 1.1rem; font-weight: 500; color: #1f2937; line-height: 1.8; }
+/* 化学の本文用（少しゆったりさせる） */
+.chem-body { margin-left: 5px; margin-bottom: 20px; font-size: 1.1rem; font-weight: 500; }
 </style>
 """, unsafe_allow_html=True)
 
 # ==================================================
-# 3. 化学式ピンポイント変換関数
+# 3. 化学式ピンポイント置換関数
 # ==================================================
 
 def smart_chem_render(text):
@@ -55,37 +72,31 @@ def smart_chem_render(text):
     if pd.isna(text): return ""
     t = str(text)
 
-    # 1. すでに $ で囲まれている部分は保護
-    if "$" in t:
-        return t
-
-    # 2. 化学式パターン（元素記号、数字、上付き・下付きの塊）を抽出
-    # 例: H2O, OH-, SO4^2-, Fe3+, CH3COOH など
-    pattern = r'([A-Z][a-z]?\d*|\^[\d\+\-]+|\([\w\d\+\-]+\)\d*|[\+\-])+'
-
+    # 1. 数字を含む元素記号やイオン価数の塊を抽出
+    # H2O, OH-, SO4^2-, Fe3+, CH3COOH, C2H5OH 等をターゲットにする
     def replacer(match):
         s = match.group(0)
-        # 短すぎる単独アルファベットなどは無視（「Aは〜」のAなどを誤爆させないため）
-        if len(s) == 1 and s.isalpha():
-            return s
+        # 短い単独文字は保護
+        if len(s) == 1 and s.isalpha(): return s
         
         # 下付き数字の処理 (H2O -> H_{2}O)
         res = re.sub(r'([A-Z][a-z]?|[\]\)])(\d+)', r'\1_{\2}', s)
-        # 上付きイオンの処理 (^2- -> ^{2-}, ^+ -> ^{+})
+        # 上付きイオンの処理 (^2- -> ^{2-})
         res = re.sub(r'\^([\d\+\-]+)', r'^{\1}', res)
-        # 上付きが明示されていないイオンの処理 (Fe3+ -> Fe^{3+}, OH- -> OH^{-})
+        # 数値+イオンの処理 (3+ -> ^{3+})
         res = re.sub(r'(\d+[\+\-])', r'^{\1}', res)
+        # 単独のイオン記号 (+ or -)
         res = re.sub(r'(?<!\^)([\+\-])(?!\w)', r'^{\1}', res)
         
         return f"${res}$"
 
-    # 化学式っぽい塊を見つけて置換
-    processed_text = re.sub(r'[A-Za-z0-9\^ \(\)\+\-]+', lambda m: re.sub(r'([A-Z][a-z]?\d+|[A-Z][a-z]?\^[\d\+\-]+|[A-Z][a-z]?[\+\-])', replacer, m.group(0)), t)
+    # 化学式っぽいアルファベット・数字・記号の塊を特定
+    processed = re.sub(r'([A-Z][a-z]?\d*|\^[\d\+\-]+|\([\w\d\+\-]+\)\d*|[\+\-])+', replacer, t)
     
-    # 矢印などの記号を補完
-    processed_text = processed_text.replace("->", r" $\rightarrow$ ").replace("→", r" $\rightarrow$ ")
+    # 矢印などの補正
+    processed = processed.replace("->", r" $\rightarrow$ ").replace("→", r" $\rightarrow$ ")
     
-    return processed_text
+    return processed
 
 def play_voice(text, label="音声を聴く"):
     try:
@@ -161,6 +172,7 @@ elif "chapter" in raw_df.columns:
 else:
     df = raw_df
 
+# セッション管理
 if st.session_state.get("quiz_subject") != subject or st.session_state.get("quiz_filter") != current_filter:
     reset_engine()
     st.session_state.quiz_subject, st.session_state.quiz_filter = subject, current_filter
@@ -185,10 +197,8 @@ if subject == "暗唱例文集":
     st.markdown('<div class="description-box"><b>【学習モード】</b><br>・全文暗唱でわからないときは<b>「ヒント」ボタン</b>を押しましょう。</div>', unsafe_allow_html=True)
     if "study_mode" not in st.session_state: st.session_state.study_mode = "全文暗唱"
     c_m1, c_m2 = st.columns(2)
-    with c_m1:
-        if st.button("🔴 全文暗唱"): st.session_state.study_mode = "全文暗唱"; st.rerun()
-    with c_m2:
-        if st.button("🔵 ヒントはこちら"): st.session_state.study_mode = "空欄補充"; st.rerun()
+    if c_m1.button("🔴 全文暗唱"): st.session_state.study_mode = "全文暗唱"; st.rerun()
+    if c_m2.button("🔵 ヒントはこちら"): st.session_state.study_mode = "空欄補充"; st.rerun()
 
     if st.session_state.study_mode == "空欄補充":
         st.info("💡 空欄に入る英語は１語とは限りません")
@@ -199,8 +209,9 @@ if subject == "暗唱例文集":
     if not st.session_state.answered:
         if st.button("答えを確認する"): st.session_state.answered = True; st.rerun()
     else:
+        st.markdown('<div class="mini-tag english-ans-tag">正解</div>', unsafe_allow_html=True)
         ans_highlight = re.sub(r'\*\*(.*?)\*\*', r'<span class="highlight">\1</span>', str(row["English"]))
-        st.markdown(f'<div class="exp-card">【正解】<br>{ans_highlight}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="chem-body">{ans_highlight}</div>', unsafe_allow_html=True)
         play_voice(str(row["English"]).replace("**", ""))
         if st.button("✅ 次へ"): st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
 
@@ -233,15 +244,18 @@ elif subject == "システム英単語":
             st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
 
 elif subject == "化学（一問一答）":
-    # スマートレンダリングを適用
     st.markdown(f'<div class="card green-card">【{row["chapter"]}】</div>', unsafe_allow_html=True)
-    st.write(smart_chem_render(row["question"]))
+    # 本文をスマートレンダリング
+    st.markdown(f'<div class="chem-body">{smart_chem_render(row["question"])}</div>', unsafe_allow_html=True)
     
     if not st.session_state.answered:
         if st.button("答えを確認する"): st.session_state.answered = True; st.rerun()
     else:
-        st.markdown('<div class="exp-card" style="border-color:#4caf50;">【正解】</div>', unsafe_allow_html=True)
-        st.write(smart_chem_render(row["answer"]))
-        st.markdown('<div class="chem-exp-card">💡 解説</div>', unsafe_allow_html=True)
-        st.write(smart_chem_render(row["explanation"]))
+        # 正解タグ
+        st.markdown('<div class="mini-tag ans-tag">正解</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="chem-body">{smart_chem_render(row["answer"])}</div>', unsafe_allow_html=True)
+        # 解説タグ
+        st.markdown('<div class="mini-tag exp-tag">解説</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="chem-body" style="font-size:0.95rem;">{smart_chem_render(row["explanation"])}</div>', unsafe_allow_html=True)
+        
         if st.button("✅ 次へ"): st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
