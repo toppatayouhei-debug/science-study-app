@@ -99,7 +99,7 @@ if df_raw.empty:
     st.sidebar.error(f"⚠️ {subject} のファイルが見つかりません。")
     st.stop()
 
-# フィルタ設定
+# --- フィルタ設定 ---
 filter_label = "すべて"
 filter_col = None
 
@@ -109,10 +109,16 @@ if subject == "システム英単語":
     current_filter, filter_col = lv_map[filter_label], "level"
 
 elif subject == "暗唱例文集":
-    # chapterカラムを使用してサイドバーを表示
     if "chapter" in df_raw.columns:
-        cats = sorted(df_raw["chapter"].dropna().unique().tolist())
-        filter_label = st.sidebar.radio("章を選択", ["すべて"] + cats)
+        # 数字順（1, 2, 3...）にソートするための処理
+        unique_chapters = df_raw["chapter"].dropna().unique().tolist()
+        try:
+            # 数字が含まれる場合は数値として並び替え
+            sorted_chapters = sorted(unique_chapters, key=lambda x: int(re.sub(r'\D', '', str(x))) if re.search(r'\d', str(x)) else 0)
+        except:
+            sorted_chapters = sorted(unique_chapters)
+            
+        filter_label = st.sidebar.radio("章を選択", ["すべて"] + sorted_chapters)
         current_filter, filter_col = filter_label, "chapter"
 
 else: # 数学
@@ -121,7 +127,7 @@ else: # 数学
         filter_label = st.sidebar.radio("分野選択", ["すべて"] + cats)
         current_filter, filter_col = filter_label, "category"
 
-# セッション管理
+# --- セッション管理 ---
 if "current_sub" not in st.session_state or st.session_state.current_sub != subject or st.session_state.get("last_filter") != filter_label:
     st.session_state.current_sub, st.session_state.last_filter = subject, filter_label
     
@@ -140,10 +146,7 @@ if st.session_state.df.empty:
 
 row = st.session_state.df.iloc[st.session_state.idx % len(st.session_state.df)]
 
-# ==========================================
-# 6. 表示ロジック
-# ==========================================
-
+# --- 表示ロジック ---
 if subject == "システム英単語":
     word = str(row["question"])
     sentence = re.sub(re.escape(word), f"<span class='highlight'>{word}</span>", str(row["sentence"]), flags=re.IGNORECASE)
