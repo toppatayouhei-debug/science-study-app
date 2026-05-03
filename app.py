@@ -11,7 +11,7 @@ import requests
 # 1. ページ設定
 # ==========================================
 st.set_page_config(
-    page_title="「理系」スターターパック",
+    page_title="「理系」学習パック",
     page_icon="🧬",
     layout="centered"
 )
@@ -27,7 +27,6 @@ st.markdown("""
 .description-box { background-color: #ffffff; padding: 20px; border-radius: 12px; border: 1px solid #e5e7eb; margin-bottom: 25px; line-height: 1.6; }
 .card { background-color: white !important; padding: 20px !important; border-radius: 12px !important; box-shadow: 0 4px 10px rgba(0,0,0,0.08) !important; margin-bottom: 18px; }
 .orange-card { border-left: 8px solid #ff9800 !important; }
-.blue-card { border-left: 8px solid #2196f3 !important; }
 .green-card { border-left: 8px solid #4caf50 !important; }
 .highlight { color: #ff9800 !important; font-weight: bold !important; }
 .stButton button { width: 100%; border-radius: 10px; font-weight: bold; min-height: 45px; }
@@ -41,9 +40,8 @@ st.markdown("""
 def clean_math(text):
     if pd.isna(text): return ""
     t = str(text).strip()
-    # 化学式・数式の簡単なLaTeX変換（$等が含まれていない場合）
+    # 化学式・数式の簡易的な整形
     if not t.startswith("$"):
-        # 化学式用の簡易置換 (例: H2O -> H_{2}O, SO4^2- -> SO_{4}^{2-})
         t = re.sub(r'([A-Z][a-z]?)(\d+)', r'\1_{\2}', t)
         t = re.sub(r'\^(\d+[\+\-])', r'^{\1}', t)
     t = t.replace("$", "").replace(r"\(", "").replace(r"\)", "").replace(r"\[", "").replace(r"\]", "")
@@ -52,7 +50,7 @@ def clean_math(text):
 def render_inline_math(text):
     if pd.isna(text): return ""
     s = str(text)
-    # 化学式や数式のパターンを検知して$で囲む
+    # 化学式などのパターンを検知して$で囲む
     pattern = r'([A-Za-z0-9\\+\-*/=^{}()]+(?:\s*[=+\-*/]\s*[A-Za-z0-9\\+\-*/=^{}()]+)+|[A-Z][a-z]?\d+|[A-Z][a-z]?\^{\d+[\+\-]})'
     def repl(m): return f"${clean_math(m.group(1))}$"
     return re.sub(pattern, repl, s)
@@ -76,9 +74,7 @@ def load_data(subject):
     file_map = {
         "システム英単語": "final_tango_list.csv",
         "暗唱例文集": "english_sent.csv",
-        "化学（一問一答）": "chemistry.csv",
-        "入試数学の定石（数Ⅲ）": "math3.csv",
-        "入試数学の定石（ⅠAⅡB C）": "math_std.csv"
+        "化学（一問一答）": "chemistry.csv"
     }
     file_name = file_map.get(subject)
     if not file_name: return pd.DataFrame()
@@ -93,10 +89,11 @@ def load_data(subject):
 # ==========================================
 # 5. メインロジック
 # ==========================================
-st.markdown('<div class="header-container"><div class="main-title">🧪 🔢 🧬 「理系」スターターパック</div></div>', unsafe_allow_html=True)
+st.markdown('<div class="header-container"><div class="main-title">🧬 学習スターターパック</div></div>', unsafe_allow_html=True)
 st.sidebar.title("🧬 学習メニュー")
 
-subject = st.sidebar.selectbox("科目を選択", ["選択してください", "システム英単語", "暗唱例文集", "化学（一問一答）", "入試数学の定石（数Ⅲ）", "入試数学の定石（ⅠAⅡB C）"])
+# 数学を削除した選択肢
+subject = st.sidebar.selectbox("科目を選択", ["選択してください", "システム英単語", "暗唱例文集", "化学（一問一答）"])
 
 if subject == "選択してください":
     st.markdown('<div class="description-box">左のサイドバーから科目を選択してください。</div>', unsafe_allow_html=True)
@@ -116,7 +113,7 @@ if subject == "システム英単語":
     filter_label = st.sidebar.radio("レベル選択", list(lv_map.keys()))
     current_filter, filter_col = lv_map[filter_label], "level"
 
-elif subject == "暗唱例文集" or subject == "化学（一問一答）":
+elif subject in ["暗唱例文集", "化学（一問一答）"]:
     chapter_col = "chapter" if "chapter" in df_raw.columns else None
     if chapter_col:
         unique_chapters = df_raw[chapter_col].dropna().unique().tolist()
@@ -127,12 +124,6 @@ elif subject == "暗唱例文集" or subject == "化学（一問一答）":
         
         filter_label = st.sidebar.radio("章・セクションを選択", ["すべて"] + sorted_chapters)
         current_filter, filter_col = filter_label, chapter_col
-
-else: # 数学
-    if "category" in df_raw.columns:
-        cats = df_raw["category"].unique().tolist()
-        filter_label = st.sidebar.radio("分野選択", ["すべて"] + cats)
-        current_filter, filter_col = filter_label, "category"
 
 # --- セッション管理 ---
 if "current_sub" not in st.session_state or st.session_state.current_sub != subject or st.session_state.get("last_filter") != filter_label:
@@ -158,7 +149,6 @@ if subject == "システム英単語":
     word = str(row["question"])
     sentence = re.sub(re.escape(word), f"<span class='highlight'>{word}</span>", str(row["sentence"]), flags=re.IGNORECASE)
     st.markdown(f'<div class="card orange-card">{sentence}</div>', unsafe_allow_html=True)
-    st.warning("⚠️ シス単本体をメインにしましょう。情報量が全然違います。")
 
     if "choices" not in st.session_state:
         ans_list = [x.strip() for x in re.split(r'[,、;]', str(row["all_answers"])) if x.strip()]
@@ -193,8 +183,6 @@ elif subject == "暗唱例文集":
     disp_text = re.sub(r'\*\*(.*?)\*\*', "[ ____ ]", str(row["English"])) if is_hint_mode else "（英文を思い出してください）"
     st.markdown(f'<div class="card orange-card">【日本語】<br><b>{row["japanese"]}</b><hr>【英文】<br>{disp_text}</div>', unsafe_allow_html=True)
 
-    if is_hint_mode: st.info("💡 [　　]の中は１語とは限りません")
-
     if not st.session_state.answered:
         if st.button("答えを確認する"): st.session_state.answered = True; st.rerun()
     else:
@@ -206,7 +194,6 @@ elif subject == "暗唱例文集":
 
 elif subject == "化学（一問一答）":
     st.markdown(f'<div class="card green-card">【{row["chapter"]}】</div>', unsafe_allow_html=True)
-    # 化学式が含まれる可能性があるのでマークダウンでレンダリング
     st.markdown(f"### {render_inline_math(row['question'])}")
     
     if not st.session_state.answered:
@@ -216,13 +203,3 @@ elif subject == "化学（一問一答）":
         st.info(f"💡 解説\n\n{render_inline_math(row['explanation'])}")
         if st.button("次の問題へ"):
             st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
-
-else: # 数学
-    st.markdown(f'<div class="card blue-card">【{row["category"]}】</div>', unsafe_allow_html=True)
-    st.latex(clean_math(row["question"]))
-    if not st.session_state.answered:
-        if st.button("定石と解答を確認する"): st.session_state.answered = True; st.rerun()
-    else:
-        st.info(f"💡 攻略の定石\n\n{row['strategy']}")
-        st.latex(clean_math(row["answer"]))
-        if st.button("次の問題へ"): st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
