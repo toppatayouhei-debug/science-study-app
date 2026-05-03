@@ -86,6 +86,7 @@ def load_data(subject):
 # 5. メインロジック
 # ==========================================
 st.markdown('<div class="header-container"><div class="main-title">🧪 🔢 🧬 「理系」スターターパック</div></div>', unsafe_allow_html=True)
+st.sidebar.title("🧬 学習メニュー")
 
 subject = st.sidebar.selectbox("科目を選択", ["選択してください", "システム英単語", "暗唱例文集", "入試数学の定石（数Ⅲ）", "入試数学の定石（ⅠAⅡB C）"])
 
@@ -94,22 +95,25 @@ if subject == "選択してください":
     st.stop()
 
 df_raw = load_data(subject)
-filter_label = "すべて"
+if df_raw.empty:
+    st.sidebar.error(f"⚠️ {subject} のファイルが見つかりません。")
+    st.stop()
 
-# フィルタ設定（科目ごとに分岐）
+# フィルタ設定
+filter_label = "すべて"
+filter_col = None
+
 if subject == "システム英単語":
     lv_map = {"すべて": "All", "Fundamental (1-600)": "Fundamental", "Essential (601-1200)": "Essential", "Advanced (1201-1700)": "Advanced", "Final (1701-2027)": "Final"}
     filter_label = st.sidebar.radio("レベル選択", list(lv_map.keys()))
     current_filter, filter_col = lv_map[filter_label], "level"
 
 elif subject == "暗唱例文集":
-    # 例文集の章立て（categoryカラムを利用）を表示
-    if "category" in df_raw.columns:
-        cats = sorted(df_raw["category"].unique().tolist())
+    # chapterカラムを使用してサイドバーを表示
+    if "chapter" in df_raw.columns:
+        cats = sorted(df_raw["chapter"].dropna().unique().tolist())
         filter_label = st.sidebar.radio("章を選択", ["すべて"] + cats)
-        current_filter, filter_col = filter_label, "category"
-    else:
-        current_filter, filter_col = "すべて", "category"
+        current_filter, filter_col = filter_label, "chapter"
 
 else: # 数学
     if "category" in df_raw.columns:
@@ -117,10 +121,15 @@ else: # 数学
         filter_label = st.sidebar.radio("分野選択", ["すべて"] + cats)
         current_filter, filter_col = filter_label, "category"
 
-# セッション初期化
+# セッション管理
 if "current_sub" not in st.session_state or st.session_state.current_sub != subject or st.session_state.get("last_filter") != filter_label:
     st.session_state.current_sub, st.session_state.last_filter = subject, filter_label
-    df = df_raw.copy() if filter_label == "すべて" else df_raw[df_raw[filter_col].astype(str).str.contains(current_filter, case=False, na=False)]
+    
+    if filter_label == "すべて" or filter_col is None:
+        df = df_raw.copy()
+    else:
+        df = df_raw[df_raw[filter_col].astype(str) == str(current_filter)]
+    
     st.session_state.df = df.sample(frac=1).reset_index(drop=True)
     st.session_state.idx, st.session_state.answered, st.session_state.study_mode = 0, False, "全文暗唱"
     if "choices" in st.session_state: del st.session_state["choices"]
@@ -131,7 +140,10 @@ if st.session_state.df.empty:
 
 row = st.session_state.df.iloc[st.session_state.idx % len(st.session_state.df)]
 
-# --- システム英単語表示 ---
+# ==========================================
+# 6. 表示ロジック
+# ==========================================
+
 if subject == "システム英単語":
     word = str(row["question"])
     sentence = re.sub(re.escape(word), f"<span class='highlight'>{word}</span>", str(row["sentence"]), flags=re.IGNORECASE)
@@ -161,7 +173,6 @@ if subject == "システム英単語":
             st.session_state.idx += 1; st.session_state.answered = False
             del st.session_state["choices"]; st.rerun()
 
-# --- 暗唱例文集表示 ---
 elif subject == "暗唱例文集":
     c1, c2 = st.columns(2)
     if c1.button("🔴 全文暗唱"): st.session_state.study_mode = "全文暗唱"; st.rerun()
@@ -179,12 +190,10 @@ elif subject == "暗唱例文集":
     else:
         ans_highlight = re.sub(r'\*\*(.*?)\*\*', r'<span style="color:#e91e63; font-weight:800; border-bottom:2px solid;">\1</span>', str(row["English"]))
         st.markdown(f'<div class="card" style="background:#fff9db !important;">【正解】<br><span style="font-size:1.1rem; font-family:serif;">{ans_highlight}</span></div>', unsafe_allow_html=True)
-        
         play_voice(str(row["English"]).replace("**", ""), "音声")
         if st.button("次の問題へ"):
             st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
 
-# --- 数学表示 ---
 else:
     st.markdown(f'<div class="card blue-card">【{row["category"]}】</div>', unsafe_allow_html=True)
     st.latex(clean_math(row["question"]))
