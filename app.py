@@ -18,7 +18,7 @@ st.set_page_config(
 )
 
 # ==================================================
-# 2. CSS (解答画面の視認性を向上)
+# 2. CSS
 # ==================================================
 st.markdown("""
 <style>
@@ -32,14 +32,16 @@ st.markdown("""
 .green-card  { border-left: 8px solid #4caf50; }
 .highlight { color: #ff9800 !important; font-weight: bold !important; }
 
-/* ミニタグ */
+/* 説明ボックス（注意事項用） */
+.description-box { background-color: #ffffff; padding: 20px; border-radius: 12px; border: 1px solid #e5e7eb; margin-bottom: 25px; line-height: 1.6; }
+
+/* タイトルタグ */
 .mini-tag { display: inline-block; padding: 2px 12px; border-radius: 8px; font-size: 0.8rem; font-weight: 800; margin-bottom: 8px; margin-top: 10px; }
 .ans-tag { background-color: #4caf50; color: white; }
 .exp-tag { background-color: #f1f8e9; color: #2e7d32; border: 1px solid #4caf50; }
-.info-tag { background-color: #e3f2fd; color: #1565c0; border: 1px solid #90caf9; }
 .english-ans-tag { background-color: #fff9db; color: #fab005; border: 1px solid #fab005; }
 
-/* シス単詳細エリア */
+/* シス単詳細エリア（情報量アップ） */
 .detail-box { background-color: #ffffff; padding: 15px; border-radius: 12px; border: 1px solid #eee; margin-top: 10px; font-size: 0.95rem; }
 .detail-label { font-weight: bold; color: #ff9800; margin-right: 5px; }
 
@@ -106,8 +108,16 @@ st.sidebar.title("🧬 学習メニュー")
 
 subject = st.sidebar.selectbox("科目を選択", ["選択してください", "システム英単語", "暗唱例文集", "化学（一問一答）"])
 
+# --- 注意事項の表示（未選択時） ---
 if subject == "選択してください":
-    st.markdown('<div class="card">左のメニューから科目を選択してください。</div>', unsafe_allow_html=True)
+    st.markdown("""
+    <div class="description-box">
+    <b>【学習の進め方】</b><br>
+    1. 左のサイドバーから<b>科目</b>を選択してください。<br>
+    2. レベルや章を選択すると、問題がランダムに出題されます。<br>
+    3. 自分のペースで暗唱や演習を繰り返しましょう。
+    </div>
+    """, unsafe_allow_html=True)
     st.stop()
 
 raw_df = load_csv(subject)
@@ -115,16 +125,26 @@ if raw_df.empty:
     st.sidebar.error("⚠️ ファイルが見つかりません。")
     st.stop()
 
-# フィルタリング
+# --- フィルタリング（サイドバー機能の復元） ---
+current_filter = "All"
 if subject == "システム英単語":
     lv_map = {"すべて":"All", "Fundamental(1-600)":"Fundamental", "Essential(601-1200)":"Essential", "Advanced(1201-1700)":"Advanced", "Final(1701-2027)":"Final"}
     sel_lv = st.sidebar.radio("レベル選択", list(lv_map.keys()))
     current_filter = lv_map[sel_lv]
     df = raw_df if current_filter == "All" else raw_df[raw_df["level"].astype(str).str.contains(current_filter, na=False)]
+elif subject == "化学（一問一答）" and "chapter" in raw_df.columns:
+    chaps = raw_df["chapter"].dropna().unique().tolist()
+    def extract_num(t):
+        m = re.search(r'\d+', str(t))
+        return int(m.group()) if m else 999
+    sorted_chaps = sorted(chaps, key=extract_num)
+    sel_chap = st.sidebar.radio("章を選択", ["すべて表示"] + sorted_chaps)
+    current_filter = sel_chap
+    df = raw_df if sel_chap == "すべて表示" else raw_df[raw_df["chapter"].astype(str).str.strip() == sel_chap]
 else:
-    current_filter = "Default"
     df = raw_df
 
+# セッションの初期化
 if st.session_state.get("quiz_subject") != subject or st.session_state.get("quiz_filter") != current_filter:
     reset_engine()
     st.session_state.quiz_subject, st.session_state.quiz_filter = subject, current_filter
@@ -147,7 +167,6 @@ st.progress((idx + 1) / len(active_df))
 
 if subject == "システム英単語":
     word = str(row["question"])
-    # 問題提示（ミニマルフレーズ/例文）
     sent = re.sub(re.escape(word), f"<span class='highlight'>{word}</span>", str(row["sentence"]), flags=re.IGNORECASE)
     st.markdown(f'<div class="card orange-card">{sent}</div>', unsafe_allow_html=True)
     
@@ -158,28 +177,29 @@ if subject == "システム英単語":
         random.shuffle(st.session_state.choices)
         st.session_state.correct = correct
 
-    # 四択ボタン
+    st.markdown('<div class="tango-btn">', unsafe_allow_html=True)
     cols = st.columns(2)
     for i, val in enumerate(st.session_state.choices):
         if cols[i%2].button(val, key=f"t_{i}", disabled=st.session_state.answered):
             st.session_state.selected, st.session_state.answered = val, True; st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
 
     if st.session_state.answered:
         if st.session_state.selected == st.session_state.correct: st.success("正解！")
         else: st.error(f"不正解... 正解：{st.session_state.correct}")
         
-        # --- シス単本体の情報量を反映した解答画面 ---
+        # システム英単語の詳細情報
         st.markdown(f"""
         <div class="detail-box">
-            <div style="font-size:1.4rem; font-weight:bold; color:#1e3a8a; border-bottom:2px solid #ff9800; margin-bottom:10px; padding-bottom:5px;">
-                {word} <span style="font-size:0.9rem; font-weight:normal; color:#666;">[{row.get('part', '語句')}]</span>
+            <div style="font-size:1.3rem; font-weight:bold; color:#1e3a8a; border-bottom:2px solid #ff9800; margin-bottom:10px; padding-bottom:5px;">
+                {word} <span style="font-size:0.8rem; font-weight:normal; color:#666;">[{row.get('part', '語句')}]</span>
             </div>
             <p><span class="detail-label">【意味】</span><b>{row['all_answers']}</b></p>
             <p><span class="detail-label">【和訳】</span>{row['translation']}</p>
             <hr style="margin:10px 0; border:0; border-top:1px solid #eee;">
             <p style="font-size:0.9rem; line-height:1.5;">
                 <span class="detail-label">【語源・語法】</span><br>
-                {row.get('explanation', '（データなし）')}
+                {row.get('explanation', '（詳細データなし）')}
             </p>
         </div>
         """, unsafe_allow_html=True)
@@ -192,6 +212,7 @@ if subject == "システム英単語":
 elif subject == "化学（一問一答）":
     st.markdown(f'<div class="card green-card">【{row["chapter"]}】</div>', unsafe_allow_html=True)
     chem_display(row["question"])
+    
     if not st.session_state.answered:
         if st.button("答えを確認する"): st.session_state.answered = True; st.rerun()
     else:
@@ -202,8 +223,7 @@ elif subject == "化学（一問一答）":
         if st.button("✅ 次へ"): st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
 
 elif subject == "暗唱例文集":
-    disp = "（英文を思い出してください）"
-    st.markdown(f'<div class="card orange-card">【日本語】<br><b>{row["japanese"]}</b><hr>【英文】<br>{disp}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="card orange-card">【日本語】<br><b>{row["japanese"]}</b><hr>【英文】<br>（英文を思い出してください）</div>', unsafe_allow_html=True)
     if not st.session_state.answered:
         if st.button("答えを確認する"): st.session_state.answered = True; st.rerun()
     else:
