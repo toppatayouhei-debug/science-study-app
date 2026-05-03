@@ -18,7 +18,7 @@ st.set_page_config(
 )
 
 # ==================================================
-# 2. CSS（文系版の高品質なデザインを移植）
+# 2. CSS
 # ==================================================
 st.markdown("""
 <style>
@@ -27,49 +27,45 @@ st.markdown("""
 .main-title { text-align:center; font-size:1.8rem; font-weight:900; margin-bottom:0.2rem; color:#1e3a8a; }
 .sub-title { text-align:center; color:#666; font-size:0.85rem; margin-bottom:1.5rem; }
 
-/* 問題カード */
 .card { background:white; padding:22px; border-radius:18px; box-shadow:0 8px 20px rgba(0,0,0,0.06); margin-bottom:1rem; line-height:1.7; font-size:1.05rem; color:#111; }
 .orange-card { border-left: 8px solid #ff9800; } 
 .green-card  { border-left: 8px solid #4caf50; }
 .highlight { color: #ff9800 !important; font-weight: bold !important; }
 
-/* 説明・解説ボックス */
 .description-box { background-color: #ffffff; padding: 20px; border-radius: 12px; border: 1px solid #e5e7eb; margin-bottom: 25px; line-height: 1.6; }
 .exp-card { background: #fff9db; padding: 18px; border-radius: 14px; border: 1px dashed #fab005; margin-top: 10px; font-size: 0.95rem; color: #333; }
 .chem-exp-card { background: #e8f5e9; padding: 18px; border-radius: 14px; border: 1px dashed #4caf50; margin-top: 10px; font-size: 0.95rem; }
 
-/* ボタン */
 .stButton button { width: 100%; border-radius: 16px; font-size: 1.1rem; font-weight: 800; min-height: 55px; transition: 0.2s; }
 .tango-btn button { background-color: #fff4e6 !important; color: #ff9800 !important; border: 2px solid #ff9800 !important; }
 
-/* 音声再生 */
 .audio-container { background-color: #f8f9fa; border-radius: 15px; padding: 10px; margin-top: 10px; display: flex; align-items: center; border: 1px solid #ddd; }
 .audio-text { font-size: 0.85rem; color: #ff9800; font-weight: bold; margin-right: auto; padding-left: 5px; }
 
-/* 化学式用 */
-.chem-text { font-size: 1.15rem; font-weight: 700; color: #1f2937; }
+.chem-text { font-size: 1.2rem; font-weight: 700; color: #1f2937; line-height: 1.8; }
 </style>
 """, unsafe_allow_html=True)
 
 # ==================================================
-# 3. ユーティリティ関数
+# 3. ユーティリティ関数（化学式処理を強化）
 # ==================================================
 
-def clean_math(text):
+def format_chem(text):
+    """化学式をLaTeX形式に変換する関数（他科目に影響しないよう独立）"""
     if pd.isna(text): return ""
     t = str(text).strip()
-    if not t.startswith("$"):
-        t = re.sub(r'([A-Z][a-z]?)(\d+)', r'\1_{\2}', t)
-        t = re.sub(r'\^(\d+[\+\-])', r'^{\1}', t)
-    t = t.replace("$", "").replace(r"\(", "").replace(r"\)", "").replace(r"\[", "").replace(r"\]", "")
-    return t
-
-def render_math(text):
-    if pd.isna(text): return ""
-    s = str(text)
-    pattern = r'([A-Za-z0-9\\+\-*/=^{}()]+(?:\s*[=+\-*/]\s*[A-Za-z0-9\\+\-*/=^{}()]+)+|[A-Z][a-z]?\d+|[A-Z][a-z]?\^{\d+[\+\-]})'
-    def repl(m): return f"${clean_math(m.group(1))}$"
-    return re.sub(pattern, repl, s)
+    # 既にLaTeX形式($)で囲まれている場合はそのまま
+    if t.startswith("$") and t.endswith("$"):
+        return t
+    
+    # 1. 元素記号の後の数字を下付きにする (例: H2O -> H_{2}O)
+    t = re.sub(r'([A-Z][a-z]?)(\d+)', r'\1_{\2}', t)
+    # 2. イオン価数を上付きにする (例: SO4^2- -> SO_{4}^{2-})
+    t = re.sub(r'\^(\d*[\+\-])', r'^{\1}', t)
+    # 3. 矢印を変換 (例: -> -> \rightarrow)
+    t = t.replace("->", r" \rightarrow ").replace("→", r" \rightarrow ")
+    
+    return f"${t}$"
 
 def play_voice(text, label="音声を聴く"):
     try:
@@ -126,7 +122,7 @@ if raw_df.empty:
     st.sidebar.error(f"⚠️ {subject} のファイルが見つかりません。")
     st.stop()
 
-# --- フィルタリング（数値ソート対応） ---
+# --- フィルタリング ---
 current_filter = "All"
 if subject == "システム英単語":
     lv_map = {"すべて":"All", "Fundamental(1-600)":"Fundamental", "Essential(601-1200)":"Essential", "Advanced(1201-1700)":"Advanced", "Final(1701-2027)":"Final"}
@@ -145,7 +141,6 @@ elif "chapter" in raw_df.columns:
 else:
     df = raw_df
 
-# セッション管理
 if st.session_state.get("quiz_subject") != subject or st.session_state.get("quiz_filter") != current_filter:
     reset_engine()
     st.session_state.quiz_subject, st.session_state.quiz_filter = subject, current_filter
@@ -167,17 +162,16 @@ st.progress((idx + 1) / len(active_df))
 # ==================================================
 
 if subject == "暗唱例文集":
-    st.markdown("""
-    <div class="description-box">
-    <b>【学習モード】</b><br>
-    ・<b>全文暗唱</b>：日本語を見て英文を完全に思い出します。<br>
-    ・<b>空欄補充</b>：重要箇所が伏せられた状態で思い出します。
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown('<div class="description-box"><b>【学習モード】</b><br>・全文暗唱でわからないときは<b>「ヒント」ボタン</b>を押しましょう。</div>', unsafe_allow_html=True)
     if "study_mode" not in st.session_state: st.session_state.study_mode = "全文暗唱"
     c_m1, c_m2 = st.columns(2)
-    if c_m1.button("🔴 全文暗唱"): st.session_state.study_mode = "全文暗唱"; st.rerun()
-    if c_m2.button("🔵 空欄補充"): st.session_state.study_mode = "空欄補充"; st.rerun()
+    with c_m1:
+        if st.button("🔴 全文暗唱"): st.session_state.study_mode = "全文暗唱"; st.rerun()
+    with c_m2:
+        if st.button("🔵 ヒントはこちら"): st.session_state.study_mode = "空欄補充"; st.rerun()
+
+    if st.session_state.study_mode == "空欄補充":
+        st.info("💡 空欄に入る英語は１語とは限りません")
 
     disp = re.sub(r'\*\*(.*?)\*\*', "[ ____ ]", str(row["English"])) if st.session_state.study_mode == "空欄補充" else "（英文を思い出してください）"
     st.markdown(f'<div class="card orange-card">【日本語】<br><b>{row["japanese"]}</b><hr>【英文】<br>{disp}</div>', unsafe_allow_html=True)
@@ -219,12 +213,13 @@ elif subject == "システム英単語":
             st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
 
 elif subject == "化学（一問一答）":
+    # 化学専用のレンダリングを使用
     st.markdown(f'<div class="card green-card">【{row["chapter"]}】</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="chem-text">{render_math(row["question"])}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="chem-text">{format_chem(row["question"])}</div>', unsafe_allow_html=True)
     
     if not st.session_state.answered:
         if st.button("答えを確認する"): st.session_state.answered = True; st.rerun()
     else:
-        st.markdown(f'<div class="exp-card" style="border-color:#4caf50;">【正解】<br><b>{render_math(row["answer"])}</b></div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="chem-exp-card">💡 解説<br>{render_math(row["explanation"])}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="exp-card" style="border-color:#4caf50;">【正解】<br><b>{format_chem(row["answer"])}</b></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="chem-exp-card">💡 解説<br>{format_chem(row["explanation"])}</div>', unsafe_allow_html=True)
         if st.button("✅ 次へ"): st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
