@@ -11,7 +11,7 @@ import requests
 # 1. ページ設定
 # ==========================================
 st.set_page_config(
-    page_title="「理系」学習パック",
+    page_title="「理系」スターターパック",
     page_icon="🧬",
     layout="centered"
 )
@@ -43,7 +43,6 @@ def clean_math(text):
     if pd.isna(text): return ""
     t = str(text).strip()
     if not t.startswith("$"):
-        # 化学式・イオン式の自動下付き・上付き整形
         t = re.sub(r'([A-Z][a-z]?)(\d+)', r'\1_{\2}', t)
         t = re.sub(r'\^(\d+[\+\-])', r'^{\1}', t)
     t = t.replace("$", "").replace(r"\(", "").replace(r"\)", "").replace(r"\[", "").replace(r"\]", "")
@@ -52,9 +51,8 @@ def clean_math(text):
 def render_inline_math(text):
     if pd.isna(text): return ""
     s = str(text)
-    # 化学式・数式のパターンを検知してLaTeXとして囲む
     pattern = r'([A-Za-z0-9\\+\-*/=^{}()]+(?:\s*[=+\-*/]\s*[A-Za-z0-9\\+\-*/=^{}()]+)+|[A-Z][a-z]?\d+|[A-Z][a-z]?\^{\d+[\+\-]})'
-    def repl(m): return f"${clean_math(m.group(1))}$"
+    def repl(m): return f"${clean_math(m.group(1))}$$
     return re.sub(pattern, repl, s)
 
 def play_voice(text, label="音声を聴く"):
@@ -91,17 +89,23 @@ def load_data(subject):
 # ==========================================
 # 5. メインロジック
 # ==========================================
-st.markdown('<div class="header-container"><div class="main-title">🧬 学習スターターパック</div></div>', unsafe_allow_html=True)
+st.markdown('<div class="header-container"><div class="main-title">🧪 🔢 🧬 「理系」スターターパック</div></div>', unsafe_allow_html=True)
 st.sidebar.title("🧬 学習メニュー")
 
-# --- 科目選択 (ここで subject を定義) ---
 subject = st.sidebar.selectbox("科目を選択", ["選択してください", "システム英単語", "暗唱例文集", "化学（一問一答）"])
 
+# --- 【復元】科目選択時の注意事項 ---
 if subject == "選択してください":
-    st.markdown('<div class="description-box">左のサイドバーから科目を選択してください。</div>', unsafe_allow_html=True)
+    st.markdown("""
+    <div class="description-box">
+    <b>【学習の進め方】</b><br>
+    1. 左のサイドバーから<b>科目</b>を選択してください。<br>
+    2. レベルや章を選択すると、問題がランダムに出題されます。<br>
+    3. 自分のペースで暗唱や演習を繰り返しましょう。
+    </div>
+    """, unsafe_allow_html=True)
     st.stop()
 
-# --- データ読み込み ---
 df_raw = load_data(subject)
 if df_raw.empty:
     st.sidebar.error(f"⚠️ {subject} のファイルが見つかりません。")
@@ -110,60 +114,46 @@ if df_raw.empty:
 # --- フィルタ設定 ---
 filter_label = "すべて"
 filter_col = None
-current_filter = None
 
 if subject == "システム英単語":
-    lv_map = {
-        "すべて": "All", 
-        "Fundamental (1-600)": "Fundamental", 
-        "Essential (601-1200)": "Essential", 
-        "Advanced (1201-1700)": "Advanced", 
-        "Final (1701-2027)": "Final"
-    }
+    lv_map = {"すべて": "All", "Fundamental (1-600)": "Fundamental", "Essential (601-1200)": "Essential", "Advanced (1201-1700)": "Advanced", "Final (1701-2027)": "Final"}
     filter_label = st.sidebar.radio("レベル選択", list(lv_map.keys()))
-    current_filter = lv_map[filter_label]
+    current_filter, filter_col = lv_map[filter_label], "level"
 
 elif subject in ["暗唱例文集", "化学（一問一答）"]:
     chapter_col = "chapter" if "chapter" in df_raw.columns else None
     if chapter_col:
         unique_chapters = df_raw[chapter_col].dropna().unique().tolist()
-        
-        # 章の数字を抽出して数値順にソートする関数
         def extract_number(text):
             match = re.search(r'\d+', str(text))
             return int(match.group()) if match else 999
-
         try:
             sorted_chapters = sorted(unique_chapters, key=extract_number)
         except:
             sorted_chapters = sorted(unique_chapters)
-        
         filter_label = st.sidebar.radio("章・セクションを選択", ["すべて"] + sorted_chapters)
         current_filter, filter_col = filter_label, chapter_col
 
-# --- セッション・フィルタリング管理 ---
+# --- セッション管理 ---
 if "current_sub" not in st.session_state or st.session_state.current_sub != subject or st.session_state.get("last_filter") != filter_label:
     st.session_state.current_sub, st.session_state.last_filter = subject, filter_label
     
-    if filter_label == "すべて":
+    if filter_label == "すべて" or filter_col is None:
         df = df_raw.copy()
-    elif subject == "システム英単語":
-        # 文字列を正規化（空白削除・先頭大文字化）して安全に比較
-        df = df_raw[df_raw["level"].str.strip().str.capitalize() == current_filter.capitalize()]
     else:
-        df = df_raw[df_raw[filter_col].astype(str) == str(current_filter)]
+        df = df_raw[df_raw[filter_col].astype(str).str.strip() == str(current_filter).strip()]
     
     st.session_state.df = df.sample(frac=1).reset_index(drop=True)
     st.session_state.idx, st.session_state.answered = 0, False
     if "choices" in st.session_state: del st.session_state["choices"]
 
 if st.session_state.df.empty:
-    st.error("該当データがありません。CSV内のレベル・章名表記が選択肢と一致しているか確認してください。")
+    st.error(f"該当データがありません。CSV内の表記を確認してください。")
     st.stop()
 
 row = st.session_state.df.iloc[st.session_state.idx % len(st.session_state.df)]
 
-# --- クイズ表示 ---
+# --- 表示ロジック ---
 if subject == "システム英単語":
     word = str(row["question"])
     sentence = re.sub(re.escape(word), f"<span class='highlight'>{word}</span>", str(row["sentence"]), flags=re.IGNORECASE)
@@ -193,6 +183,15 @@ if subject == "システム英単語":
             del st.session_state["choices"]; st.rerun()
 
 elif subject == "暗唱例文集":
+    # --- 【復元】暗唱例文集の注意事項 ---
+    st.markdown("""
+    <div class="description-box">
+    <b>【学習モード】</b><br>
+    ・<b>全文暗唱</b>：日本語を見て英文を完全に思い出します。<br>
+    ・<b>空欄補充</b>：重要箇所が伏せられた状態で思い出します。
+    </div>
+    """, unsafe_allow_html=True)
+
     if "study_mode" not in st.session_state: st.session_state.study_mode = "全文暗唱"
     c1, c2 = st.columns(2)
     if c1.button("🔴 全文暗唱"): st.session_state.study_mode = "全文暗唱"; st.rerun()
@@ -213,7 +212,6 @@ elif subject == "暗唱例文集":
 
 elif subject == "化学（一問一答）":
     st.markdown(f'<div class="card green-card">【{row["chapter"]}】</div>', unsafe_allow_html=True)
-    # 化学用に少し小さくしたフォントスタイルを適用
     st.markdown(f'<div class="chem-question">{render_inline_math(row["question"])}</div>', unsafe_allow_html=True)
     
     if not st.session_state.answered:
