@@ -26,42 +26,57 @@ st.markdown("""
 .block-container { max-width:720px; padding-top: 3rem !important; } 
 .main-title { text-align:center; font-size:1.8rem; font-weight:900; margin-bottom:0.2rem; color:#1e3a8a; }
 
+/* 問題カード */
 .card { background:white; padding:22px; border-radius:18px; box-shadow:0 8px 20px rgba(0,0,0,0.06); margin-bottom:1rem; line-height:1.7; font-size:1.05rem; color:#111; }
 .orange-card { border-left: 8px solid #ff9800; } 
 .green-card  { border-left: 8px solid #4caf50; }
 .highlight { color: #ff9800 !important; font-weight: bold !important; }
 
+/* 説明ボックス */
 .description-box { background-color: #ffffff; padding: 20px; border-radius: 12px; border: 1px solid #e5e7eb; margin-bottom: 25px; line-height: 1.6; }
 
-.mini-tag { display: inline-block; padding: 2px 12px; border-radius: 8px; font-size: 0.8rem; font-weight: 800; margin-bottom: 8px; margin-top: 10px; }
+/* タイトルタグ */
+.mini-tag {
+    display: inline-block;
+    padding: 2px 12px;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 800;
+    margin-bottom: 8px;
+    margin-top: 10px;
+}
 .ans-tag { background-color: #4caf50; color: white; }
 .exp-tag { background-color: #f1f8e9; color: #2e7d32; border: 1px solid #4caf50; }
 .english-ans-tag { background-color: #fff9db; color: #fab005; border: 1px solid #fab005; }
 
-.detail-box { background-color: #ffffff; padding: 15px; border-radius: 12px; border: 1px solid #eee; margin-top: 10px; font-size: 0.95rem; }
-.detail-label { font-weight: bold; color: #ff9800; margin-right: 5px; }
-
+/* ボタン */
 .stButton button { width: 100%; border-radius: 16px; font-size: 1.1rem; font-weight: 800; min-height: 55px; transition: 0.2s; }
 .tango-btn button { background-color: #fff4e6 !important; color: #ff9800 !important; border: 2px solid #ff9800 !important; }
 
+/* 音声再生 */
 .audio-container { background-color: #f8f9fa; border-radius: 15px; padding: 10px; margin-top: 10px; display: flex; align-items: center; border: 1px solid #ddd; }
 .audio-text { font-size: 0.85rem; color: #ff9800; font-weight: bold; margin-right: auto; padding-left: 5px; }
+
+/* 本文エリア */
+.content-area { margin-bottom: 15px; padding-left: 5px; }
 </style>
 """, unsafe_allow_html=True)
 
 # ==================================================
-# 3. ユーティリティ関数（化学式描画）
+# 3. ユーティリティ関数
 # ==================================================
 
 def render_text(text):
-    """シンプルな化学式置換（崩れにくい初期版ロジック）"""
+    """シンプルな化学式置換（崩れにくい初期版に近いロジック）"""
     if pd.isna(text): return ""
     t = str(text)
-    # 下付き数字と指数の最低限の置換
+    # 化学式の下付き数字を置換 (例: H2O -> H₂O)
     t = re.sub(r'([A-Z][a-z]?)(\d+)', r'\1_{\2}', t)
+    # イオンの上付きを置換 (例: ^2- -> ^{2-})
     t = re.sub(r'\^(\d*[\+\-])', r'^{\1}', t)
     
-    # 変換が発生した場合のみ $ で囲む（日本語の崩れを防止）
+    # 文章の中に数式が含まれる可能性を考慮し、全体を$で囲むのではなく、
+    # 置換が発生した箇所があればその文字列をLaTeXとして表示
     if "_{" in t or "^{" in t:
         return f"${t}$"
     return t
@@ -98,7 +113,7 @@ def load_csv(subject):
     except: return pd.DataFrame()
 
 # ==================================================
-# 5. メイン画面・サイドバー
+# 5. メイン画面
 # ==================================================
 st.markdown('<div class="main-title">🧪 🔢 🧬 「理系」スターターパック</div>', unsafe_allow_html=True)
 st.sidebar.title("🧬 学習メニュー")
@@ -118,10 +133,10 @@ if subject == "選択してください":
 
 raw_df = load_csv(subject)
 if raw_df.empty:
-    st.sidebar.error("⚠️ ファイルが見つかりません。")
+    st.sidebar.error(f"⚠️ {subject} のファイルが見つかりません。")
     st.stop()
 
-# --- フィルタリング（章選択の復元） ---
+# フィルタリング
 current_filter = "All"
 if subject == "システム英単語":
     lv_map = {"すべて":"All", "Fundamental(1-600)":"Fundamental", "Essential(601-1200)":"Essential", "Advanced(1201-1700)":"Advanced", "Final(1701-2027)":"Final"}
@@ -151,7 +166,7 @@ if active_df.empty: st.error("データがありません。"); st.stop()
 
 idx = st.session_state.idx
 if idx >= len(active_df):
-    st.balloons(); st.button("もう一度最初から", on_click=reset_engine); st.stop()
+    st.balloons(); st.success("全問終了！"); st.button("もう一度最初から", on_click=reset_engine); st.stop()
 
 row = active_df.iloc[idx]
 st.progress((idx + 1) / len(active_df))
@@ -160,7 +175,29 @@ st.progress((idx + 1) / len(active_df))
 # 6. 表示UI
 # ==================================================
 
-if subject == "システム英単語":
+if subject == "暗唱例文集":
+    st.markdown('<div class="description-box"><b>【学習モード】</b><br>・全文暗唱でわからないときは<b>「ヒント」ボタン</b>を押しましょう。</div>', unsafe_allow_html=True)
+    if "study_mode" not in st.session_state: st.session_state.study_mode = "全文暗唱"
+    c_m1, c_m2 = st.columns(2)
+    if c_m1.button("🔴 全文暗唱"): st.session_state.study_mode = "全文暗唱"; st.rerun()
+    if c_m2.button("🔵 ヒントはこちら"): st.session_state.study_mode = "空欄補充"; st.rerun()
+
+    if st.session_state.study_mode == "空欄補充":
+        st.info("💡 空欄に入る英語は１語とは限りません")
+
+    disp = re.sub(r'\*\*(.*?)\*\*', "[ ____ ]", str(row["English"])) if st.session_state.study_mode == "空欄補充" else "（英文を思い出してください）"
+    st.markdown(f'<div class="card orange-card">【日本語】<br><b>{row["japanese"]}</b><hr>【英文】<br>{disp}</div>', unsafe_allow_html=True)
+
+    if not st.session_state.answered:
+        if st.button("答えを確認する"): st.session_state.answered = True; st.rerun()
+    else:
+        st.markdown('<div class="mini-tag english-ans-tag">正解</div>', unsafe_allow_html=True)
+        ans_highlight = re.sub(r'\*\*(.*?)\*\*', r'<span class="highlight">\1</span>', str(row["English"]))
+        st.markdown(f'<div class="content-area">{ans_highlight}</div>', unsafe_allow_html=True)
+        play_voice(str(row["English"]).replace("**", ""))
+        if st.button("✅ 次へ"): st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
+
+elif subject == "システム英単語":
     word = str(row["question"])
     sent = re.sub(re.escape(word), f"<span class='highlight'>{word}</span>", str(row["sentence"]), flags=re.IGNORECASE)
     st.markdown(f'<div class="card orange-card">{sent}</div>', unsafe_allow_html=True)
@@ -182,23 +219,7 @@ if subject == "システム英単語":
     if st.session_state.answered:
         if st.session_state.selected == st.session_state.correct: st.success("正解！")
         else: st.error(f"不正解... 正解：{st.session_state.correct}")
-        
-        # 解答画面への情報追加（シス単本体の情報を反映）
-        st.markdown(f"""
-        <div class="detail-box">
-            <div style="font-size:1.3rem; font-weight:bold; color:#1e3a8a; border-bottom:2px solid #ff9800; margin-bottom:10px; padding-bottom:5px;">
-                {word} <span style="font-size:0.8rem; font-weight:normal; color:#666;">[{row.get('part', '語句')}]</span>
-            </div>
-            <p><span class="detail-label">【意味】</span><b>{row['all_answers']}</b></p>
-            <p><span class="detail-label">【和訳】</span>{row['translation']}</p>
-            <hr style="margin:10px 0; border:0; border-top:1px solid #eee;">
-            <p style="font-size:0.9rem; line-height:1.5;">
-                <span class="detail-label">【語源・語法】</span><br>
-                {row.get('explanation', '（データなし）')}
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
-        
+        st.info(f"意味：{row['all_answers']}\n訳：{row['translation']}")
         play_voice(word)
         if st.button("✅ 次の問題へ"):
             del st.session_state.choices
@@ -215,15 +236,4 @@ elif subject == "化学（一問一答）":
         st.write(render_text(row["answer"]))
         st.markdown('<div class="mini-tag exp-tag">解説</div>', unsafe_allow_html=True)
         st.write(render_text(row["explanation"]))
-        if st.button("✅ 次へ"): st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
-
-elif subject == "暗唱例文集":
-    st.markdown(f'<div class="card orange-card">【日本語】<br><b>{row["japanese"]}</b><hr>【英文】<br>（英文を思い出してください）</div>', unsafe_allow_html=True)
-    if not st.session_state.answered:
-        if st.button("答えを確認する"): st.session_state.answered = True; st.rerun()
-    else:
-        st.markdown('<div class="mini-tag english-ans-tag">正解</div>', unsafe_allow_html=True)
-        ans = re.sub(r'\*\*(.*?)\*\*', r'<span class="highlight">\1</span>', str(row["English"]))
-        st.markdown(f'<div style="padding:10px;">{ans}</div>', unsafe_allow_html=True)
-        play_voice(str(row["English"]).replace("**", ""))
         if st.button("✅ 次へ"): st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
