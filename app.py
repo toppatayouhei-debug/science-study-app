@@ -227,13 +227,18 @@ elif subject == "システム英単語":
 
 elif subject == "化学（一問一答）":
     st.markdown(f'<div class="card green-card">【{row["chapter"]}】</div>', unsafe_allow_html=True)
-    st.write(render_text(row["question"]))
+    
+    # 修正ポイント：render_textを通さず、直接 st.markdown で描画する
+    # これにより、CSV内の $...$ が正しく認識されます
+    st.markdown(str(row["question"]))
     
     if not st.session_state.answered:
         if st.button("答えを確認する"): st.session_state.answered = True; st.rerun()
     else:
         st.markdown('<div class="mini-tag ans-tag">正解</div>', unsafe_allow_html=True)
-        st.write(render_text(row["answer"]))
+        st.markdown(str(row["answer"]))
+        
         st.markdown('<div class="mini-tag exp-tag">解説</div>', unsafe_allow_html=True)
-        st.write(render_text(row["explanation"]))
+        st.markdown(str(row["explanation"]))
+        
         if st.button("✅ 次へ"): st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
