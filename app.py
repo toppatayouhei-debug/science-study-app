@@ -42,30 +42,50 @@ st.markdown("""
 .audio-container { background-color: #f8f9fa; border-radius: 15px; padding: 10px; margin-top: 10px; display: flex; align-items: center; border: 1px solid #ddd; }
 .audio-text { font-size: 0.85rem; color: #ff9800; font-weight: bold; margin-right: auto; padding-left: 5px; }
 
-.chem-text { font-size: 1.2rem; font-weight: 700; color: #1f2937; line-height: 1.8; }
+.chem-text { font-size: 1.1rem; font-weight: 500; color: #1f2937; line-height: 1.8; }
 </style>
 """, unsafe_allow_html=True)
 
 # ==================================================
-# 3. ユーティリティ関数（化学式処理を強化）
+# 3. 化学式ピンポイント変換関数
 # ==================================================
 
-def format_chem(text):
-    """化学式をLaTeX形式に変換する関数（他科目に影響しないよう独立）"""
+def smart_chem_render(text):
+    """文章内の化学式と思われる箇所だけを抽出してLaTeX化する"""
     if pd.isna(text): return ""
-    t = str(text).strip()
-    # 既にLaTeX形式($)で囲まれている場合はそのまま
-    if t.startswith("$") and t.endswith("$"):
+    t = str(text)
+
+    # 1. すでに $ で囲まれている部分は保護
+    if "$" in t:
         return t
+
+    # 2. 化学式パターン（元素記号、数字、上付き・下付きの塊）を抽出
+    # 例: H2O, OH-, SO4^2-, Fe3+, CH3COOH など
+    pattern = r'([A-Z][a-z]?\d*|\^[\d\+\-]+|\([\w\d\+\-]+\)\d*|[\+\-])+'
+
+    def replacer(match):
+        s = match.group(0)
+        # 短すぎる単独アルファベットなどは無視（「Aは〜」のAなどを誤爆させないため）
+        if len(s) == 1 and s.isalpha():
+            return s
+        
+        # 下付き数字の処理 (H2O -> H_{2}O)
+        res = re.sub(r'([A-Z][a-z]?|[\]\)])(\d+)', r'\1_{\2}', s)
+        # 上付きイオンの処理 (^2- -> ^{2-}, ^+ -> ^{+})
+        res = re.sub(r'\^([\d\+\-]+)', r'^{\1}', res)
+        # 上付きが明示されていないイオンの処理 (Fe3+ -> Fe^{3+}, OH- -> OH^{-})
+        res = re.sub(r'(\d+[\+\-])', r'^{\1}', res)
+        res = re.sub(r'(?<!\^)([\+\-])(?!\w)', r'^{\1}', res)
+        
+        return f"${res}$"
+
+    # 化学式っぽい塊を見つけて置換
+    processed_text = re.sub(r'[A-Za-z0-9\^ \(\)\+\-]+', lambda m: re.sub(r'([A-Z][a-z]?\d+|[A-Z][a-z]?\^[\d\+\-]+|[A-Z][a-z]?[\+\-])', replacer, m.group(0)), t)
     
-    # 1. 元素記号の後の数字を下付きにする (例: H2O -> H_{2}O)
-    t = re.sub(r'([A-Z][a-z]?)(\d+)', r'\1_{\2}', t)
-    # 2. イオン価数を上付きにする (例: SO4^2- -> SO_{4}^{2-})
-    t = re.sub(r'\^(\d*[\+\-])', r'^{\1}', t)
-    # 3. 矢印を変換 (例: -> -> \rightarrow)
-    t = t.replace("->", r" \rightarrow ").replace("→", r" \rightarrow ")
+    # 矢印などの記号を補完
+    processed_text = processed_text.replace("->", r" $\rightarrow$ ").replace("→", r" $\rightarrow$ ")
     
-    return f"${t}$"
+    return processed_text
 
 def play_voice(text, label="音声を聴く"):
     try:
@@ -213,13 +233,15 @@ elif subject == "システム英単語":
             st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
 
 elif subject == "化学（一問一答）":
-    # 化学専用のレンダリングを使用
+    # スマートレンダリングを適用
     st.markdown(f'<div class="card green-card">【{row["chapter"]}】</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="chem-text">{format_chem(row["question"])}</div>', unsafe_allow_html=True)
+    st.write(smart_chem_render(row["question"]))
     
     if not st.session_state.answered:
         if st.button("答えを確認する"): st.session_state.answered = True; st.rerun()
     else:
-        st.markdown(f'<div class="exp-card" style="border-color:#4caf50;">【正解】<br><b>{format_chem(row["answer"])}</b></div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="chem-exp-card">💡 解説<br>{format_chem(row["explanation"])}</div>', unsafe_allow_html=True)
+        st.markdown('<div class="exp-card" style="border-color:#4caf50;">【正解】</div>', unsafe_allow_html=True)
+        st.write(smart_chem_render(row["answer"]))
+        st.markdown('<div class="chem-exp-card">💡 解説</div>', unsafe_allow_html=True)
+        st.write(smart_chem_render(row["explanation"]))
         if st.button("✅ 次へ"): st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
