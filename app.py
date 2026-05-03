@@ -52,7 +52,8 @@ def render_inline_math(text):
     if pd.isna(text): return ""
     s = str(text)
     pattern = r'([A-Za-z0-9\\+\-*/=^{}()]+(?:\s*[=+\-*/]\s*[A-Za-z0-9\\+\-*/=^{}()]+)+|[A-Z][a-z]?\d+|[A-Z][a-z]?\^{\d+[\+\-]})'
-    def repl(m): return f"${clean_math(m.group(1))}$$
+    # 修正箇所: f-string の閉じ引用符を正しく修正
+    def repl(m): return f"${clean_math(m.group(1))}$"
     return re.sub(pattern, repl, s)
 
 def play_voice(text, label="音声を聴く"):
@@ -94,7 +95,6 @@ st.sidebar.title("🧬 学習メニュー")
 
 subject = st.sidebar.selectbox("科目を選択", ["選択してください", "システム英単語", "暗唱例文集", "化学（一問一答）"])
 
-# --- 【復元】科目選択時の注意事項 ---
 if subject == "選択してください":
     st.markdown("""
     <div class="description-box">
@@ -148,7 +148,7 @@ if "current_sub" not in st.session_state or st.session_state.current_sub != subj
     if "choices" in st.session_state: del st.session_state["choices"]
 
 if st.session_state.df.empty:
-    st.error(f"該当データがありません。CSV内の表記を確認してください。")
+    st.error(f"該当データがありません。")
     st.stop()
 
 row = st.session_state.df.iloc[st.session_state.idx % len(st.session_state.df)]
@@ -183,7 +183,6 @@ if subject == "システム英単語":
             del st.session_state["choices"]; st.rerun()
 
 elif subject == "暗唱例文集":
-    # --- 【復元】暗唱例文集の注意事項 ---
     st.markdown("""
     <div class="description-box">
     <b>【学習モード】</b><br>
