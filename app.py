@@ -18,14 +18,13 @@ st.set_page_config(
 )
 
 # ==================================================
-# 2. CSS (文系版の洗練されたパーツ + 化学用新タグ)
+# 2. CSS
 # ==================================================
 st.markdown("""
 <style>
 .stApp { background:#f7f8fc; }
 .block-container { max-width:720px; padding-top: 3rem !important; } 
 .main-title { text-align:center; font-size:1.8rem; font-weight:900; margin-bottom:0.2rem; color:#1e3a8a; }
-.sub-title { text-align:center; color:#666; font-size:0.85rem; margin-bottom:1.5rem; }
 
 /* 問題カード */
 .card { background:white; padding:22px; border-radius:18px; box-shadow:0 8px 20px rgba(0,0,0,0.06); margin-bottom:1rem; line-height:1.7; font-size:1.05rem; color:#111; }
@@ -36,15 +35,15 @@ st.markdown("""
 /* 説明ボックス */
 .description-box { background-color: #ffffff; padding: 20px; border-radius: 12px; border: 1px solid #e5e7eb; margin-bottom: 25px; line-height: 1.6; }
 
-/* 小さなタイトルタグ（化学用） */
+/* タイトルタグ */
 .mini-tag {
     display: inline-block;
-    padding: 4px 14px;
-    border-radius: 10px;
-    font-size: 0.85rem;
+    padding: 2px 12px;
+    border-radius: 8px;
+    font-size: 0.8rem;
     font-weight: 800;
-    margin-bottom: 10px;
-    margin-top: 15px;
+    margin-bottom: 8px;
+    margin-top: 10px;
 }
 .ans-tag { background-color: #4caf50; color: white; }
 .exp-tag { background-color: #f1f8e9; color: #2e7d32; border: 1px solid #4caf50; }
@@ -58,45 +57,29 @@ st.markdown("""
 .audio-container { background-color: #f8f9fa; border-radius: 15px; padding: 10px; margin-top: 10px; display: flex; align-items: center; border: 1px solid #ddd; }
 .audio-text { font-size: 0.85rem; color: #ff9800; font-weight: bold; margin-right: auto; padding-left: 5px; }
 
-/* 化学の本文用（少しゆったりさせる） */
-.chem-body { margin-left: 5px; margin-bottom: 20px; font-size: 1.1rem; font-weight: 500; }
+/* 本文エリア */
+.content-area { margin-bottom: 15px; padding-left: 5px; }
 </style>
 """, unsafe_allow_html=True)
 
 # ==================================================
-# 3. 化学式ピンポイント置換関数
+# 3. ユーティリティ関数
 # ==================================================
 
-def smart_chem_render(text):
-    """文章内の化学式と思われる箇所だけを抽出してLaTeX化する"""
+def render_text(text):
+    """シンプルな化学式置換（崩れにくい初期版に近いロジック）"""
     if pd.isna(text): return ""
     t = str(text)
-
-    # 1. 数字を含む元素記号やイオン価数の塊を抽出
-    # H2O, OH-, SO4^2-, Fe3+, CH3COOH, C2H5OH 等をターゲットにする
-    def replacer(match):
-        s = match.group(0)
-        # 短い単独文字は保護
-        if len(s) == 1 and s.isalpha(): return s
-        
-        # 下付き数字の処理 (H2O -> H_{2}O)
-        res = re.sub(r'([A-Z][a-z]?|[\]\)])(\d+)', r'\1_{\2}', s)
-        # 上付きイオンの処理 (^2- -> ^{2-})
-        res = re.sub(r'\^([\d\+\-]+)', r'^{\1}', res)
-        # 数値+イオンの処理 (3+ -> ^{3+})
-        res = re.sub(r'(\d+[\+\-])', r'^{\1}', res)
-        # 単独のイオン記号 (+ or -)
-        res = re.sub(r'(?<!\^)([\+\-])(?!\w)', r'^{\1}', res)
-        
-        return f"${res}$"
-
-    # 化学式っぽいアルファベット・数字・記号の塊を特定
-    processed = re.sub(r'([A-Z][a-z]?\d*|\^[\d\+\-]+|\([\w\d\+\-]+\)\d*|[\+\-])+', replacer, t)
+    # 化学式の下付き数字を置換 (例: H2O -> H₂O)
+    t = re.sub(r'([A-Z][a-z]?)(\d+)', r'\1_{\2}', t)
+    # イオンの上付きを置換 (例: ^2- -> ^{2-})
+    t = re.sub(r'\^(\d*[\+\-])', r'^{\1}', t)
     
-    # 矢印などの補正
-    processed = processed.replace("->", r" $\rightarrow$ ").replace("→", r" $\rightarrow$ ")
-    
-    return processed
+    # 文章の中に数式が含まれる可能性を考慮し、全体を$で囲むのではなく、
+    # 置換が発生した箇所があればその文字列をLaTeXとして表示
+    if "_{" in t or "^{" in t:
+        return f"${t}$"
+    return t
 
 def play_voice(text, label="音声を聴く"):
     try:
@@ -130,7 +113,7 @@ def load_csv(subject):
     except: return pd.DataFrame()
 
 # ==================================================
-# 5. メイン画面・サイドバー
+# 5. メイン画面
 # ==================================================
 st.markdown('<div class="main-title">🧪 🔢 🧬 「理系」スターターパック</div>', unsafe_allow_html=True)
 st.sidebar.title("🧬 学習メニュー")
@@ -153,7 +136,7 @@ if raw_df.empty:
     st.sidebar.error(f"⚠️ {subject} のファイルが見つかりません。")
     st.stop()
 
-# --- フィルタリング ---
+# フィルタリング
 current_filter = "All"
 if subject == "システム英単語":
     lv_map = {"すべて":"All", "Fundamental(1-600)":"Fundamental", "Essential(601-1200)":"Essential", "Advanced(1201-1700)":"Advanced", "Final(1701-2027)":"Final"}
@@ -172,7 +155,6 @@ elif "chapter" in raw_df.columns:
 else:
     df = raw_df
 
-# セッション管理
 if st.session_state.get("quiz_subject") != subject or st.session_state.get("quiz_filter") != current_filter:
     reset_engine()
     st.session_state.quiz_subject, st.session_state.quiz_filter = subject, current_filter
@@ -211,7 +193,7 @@ if subject == "暗唱例文集":
     else:
         st.markdown('<div class="mini-tag english-ans-tag">正解</div>', unsafe_allow_html=True)
         ans_highlight = re.sub(r'\*\*(.*?)\*\*', r'<span class="highlight">\1</span>', str(row["English"]))
-        st.markdown(f'<div class="chem-body">{ans_highlight}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="content-area">{ans_highlight}</div>', unsafe_allow_html=True)
         play_voice(str(row["English"]).replace("**", ""))
         if st.button("✅ 次へ"): st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
 
@@ -245,17 +227,13 @@ elif subject == "システム英単語":
 
 elif subject == "化学（一問一答）":
     st.markdown(f'<div class="card green-card">【{row["chapter"]}】</div>', unsafe_allow_html=True)
-    # 本文をスマートレンダリング
-    st.markdown(f'<div class="chem-body">{smart_chem_render(row["question"])}</div>', unsafe_allow_html=True)
+    st.write(render_text(row["question"]))
     
     if not st.session_state.answered:
         if st.button("答えを確認する"): st.session_state.answered = True; st.rerun()
     else:
-        # 正解タグ
         st.markdown('<div class="mini-tag ans-tag">正解</div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="chem-body">{smart_chem_render(row["answer"])}</div>', unsafe_allow_html=True)
-        # 解説タグ
+        st.write(render_text(row["answer"]))
         st.markdown('<div class="mini-tag exp-tag">解説</div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="chem-body" style="font-size:0.95rem;">{smart_chem_render(row["explanation"])}</div>', unsafe_allow_html=True)
-        
+        st.write(render_text(row["explanation"]))
         if st.button("✅ 次へ"): st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
