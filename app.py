@@ -26,48 +26,45 @@ st.markdown("""
 .block-container { max-width:720px; padding-top: 3rem !important; } 
 .main-title { text-align:center; font-size:1.8rem; font-weight:900; margin-bottom:0.2rem; color:#1e3a8a; }
 
-/* カードデザイン */
 .card { background:white; padding:22px; border-radius:18px; box-shadow:0 8px 20px rgba(0,0,0,0.06); margin-bottom:1rem; line-height:1.7; font-size:1.05rem; color:#111; }
 .orange-card { border-left: 8px solid #ff9800; } 
 .green-card  { border-left: 8px solid #4caf50; }
 .highlight { color: #ff9800 !important; font-weight: bold !important; }
 
-/* 説明ボックス（注意事項用） */
 .description-box { background-color: #ffffff; padding: 20px; border-radius: 12px; border: 1px solid #e5e7eb; margin-bottom: 25px; line-height: 1.6; }
 
-/* タイトルタグ */
 .mini-tag { display: inline-block; padding: 2px 12px; border-radius: 8px; font-size: 0.8rem; font-weight: 800; margin-bottom: 8px; margin-top: 10px; }
 .ans-tag { background-color: #4caf50; color: white; }
 .exp-tag { background-color: #f1f8e9; color: #2e7d32; border: 1px solid #4caf50; }
 .english-ans-tag { background-color: #fff9db; color: #fab005; border: 1px solid #fab005; }
 
-/* シス単詳細エリア（情報量アップ） */
 .detail-box { background-color: #ffffff; padding: 15px; border-radius: 12px; border: 1px solid #eee; margin-top: 10px; font-size: 0.95rem; }
 .detail-label { font-weight: bold; color: #ff9800; margin-right: 5px; }
 
-/* ボタン */
 .stButton button { width: 100%; border-radius: 16px; font-size: 1.1rem; font-weight: 800; min-height: 55px; transition: 0.2s; }
 .tango-btn button { background-color: #fff4e6 !important; color: #ff9800 !important; border: 2px solid #ff9800 !important; }
 
-/* 音声再生 */
 .audio-container { background-color: #f8f9fa; border-radius: 15px; padding: 10px; margin-top: 10px; display: flex; align-items: center; border: 1px solid #ddd; }
 .audio-text { font-size: 0.85rem; color: #ff9800; font-weight: bold; margin-right: auto; padding-left: 5px; }
 </style>
 """, unsafe_allow_html=True)
 
 # ==================================================
-# 3. ユーティリティ関数
+# 3. ユーティリティ関数（化学式描画）
 # ==================================================
 
-def chem_display(text):
-    """化学式・指数を検出してMarkdownレンダリング"""
-    if pd.isna(text): return
+def render_text(text):
+    """シンプルな化学式置換（崩れにくい初期版ロジック）"""
+    if pd.isna(text): return ""
     t = str(text)
-    t = re.sub(r'(\d+)\^(\d+)', r'\1^{\2}', t)
+    # 下付き数字と指数の最低限の置換
     t = re.sub(r'([A-Z][a-z]?)(\d+)', r'\1_{\2}', t)
-    t = re.sub(r'\^([\d\+\-]+)', r'^{\1}', t)
-    t = t.replace(" x ", r" \times ").replace(" × ", r" \times ")
-    st.markdown(t)
+    t = re.sub(r'\^(\d*[\+\-])', r'^{\1}', t)
+    
+    # 変換が発生した場合のみ $ で囲む（日本語の崩れを防止）
+    if "_{" in t or "^{" in t:
+        return f"${t}$"
+    return t
 
 def play_voice(text, label="音声を聴く"):
     try:
@@ -101,14 +98,13 @@ def load_csv(subject):
     except: return pd.DataFrame()
 
 # ==================================================
-# 5. メインロジック
+# 5. メイン画面・サイドバー
 # ==================================================
 st.markdown('<div class="main-title">🧪 🔢 🧬 「理系」スターターパック</div>', unsafe_allow_html=True)
 st.sidebar.title("🧬 学習メニュー")
 
 subject = st.sidebar.selectbox("科目を選択", ["選択してください", "システム英単語", "暗唱例文集", "化学（一問一答）"])
 
-# --- 注意事項の表示（未選択時） ---
 if subject == "選択してください":
     st.markdown("""
     <div class="description-box">
@@ -125,26 +121,25 @@ if raw_df.empty:
     st.sidebar.error("⚠️ ファイルが見つかりません。")
     st.stop()
 
-# --- フィルタリング（サイドバー機能の復元） ---
+# --- フィルタリング（章選択の復元） ---
 current_filter = "All"
 if subject == "システム英単語":
     lv_map = {"すべて":"All", "Fundamental(1-600)":"Fundamental", "Essential(601-1200)":"Essential", "Advanced(1201-1700)":"Advanced", "Final(1701-2027)":"Final"}
     sel_lv = st.sidebar.radio("レベル選択", list(lv_map.keys()))
     current_filter = lv_map[sel_lv]
     df = raw_df if current_filter == "All" else raw_df[raw_df["level"].astype(str).str.contains(current_filter, na=False)]
-elif subject == "化学（一問一答）" and "chapter" in raw_df.columns:
+elif "chapter" in raw_df.columns:
     chaps = raw_df["chapter"].dropna().unique().tolist()
     def extract_num(t):
         m = re.search(r'\d+', str(t))
         return int(m.group()) if m else 999
     sorted_chaps = sorted(chaps, key=extract_num)
-    sel_chap = st.sidebar.radio("章を選択", ["すべて表示"] + sorted_chaps)
+    sel_chap = st.sidebar.radio("範囲を選択", ["すべて表示"] + sorted_chaps)
     current_filter = sel_chap
     df = raw_df if sel_chap == "すべて表示" else raw_df[raw_df["chapter"].astype(str).str.strip() == sel_chap]
 else:
     df = raw_df
 
-# セッションの初期化
 if st.session_state.get("quiz_subject") != subject or st.session_state.get("quiz_filter") != current_filter:
     reset_engine()
     st.session_state.quiz_subject, st.session_state.quiz_filter = subject, current_filter
@@ -162,7 +157,7 @@ row = active_df.iloc[idx]
 st.progress((idx + 1) / len(active_df))
 
 # ==================================================
-# 6. 科目別UI
+# 6. 表示UI
 # ==================================================
 
 if subject == "システム英単語":
@@ -188,7 +183,7 @@ if subject == "システム英単語":
         if st.session_state.selected == st.session_state.correct: st.success("正解！")
         else: st.error(f"不正解... 正解：{st.session_state.correct}")
         
-        # システム英単語の詳細情報
+        # 解答画面への情報追加（シス単本体の情報を反映）
         st.markdown(f"""
         <div class="detail-box">
             <div style="font-size:1.3rem; font-weight:bold; color:#1e3a8a; border-bottom:2px solid #ff9800; margin-bottom:10px; padding-bottom:5px;">
@@ -199,7 +194,7 @@ if subject == "システム英単語":
             <hr style="margin:10px 0; border:0; border-top:1px solid #eee;">
             <p style="font-size:0.9rem; line-height:1.5;">
                 <span class="detail-label">【語源・語法】</span><br>
-                {row.get('explanation', '（詳細データなし）')}
+                {row.get('explanation', '（データなし）')}
             </p>
         </div>
         """, unsafe_allow_html=True)
@@ -211,15 +206,15 @@ if subject == "システム英単語":
 
 elif subject == "化学（一問一答）":
     st.markdown(f'<div class="card green-card">【{row["chapter"]}】</div>', unsafe_allow_html=True)
-    chem_display(row["question"])
+    st.write(render_text(row["question"]))
     
     if not st.session_state.answered:
         if st.button("答えを確認する"): st.session_state.answered = True; st.rerun()
     else:
         st.markdown('<div class="mini-tag ans-tag">正解</div>', unsafe_allow_html=True)
-        chem_display(row["answer"])
+        st.write(render_text(row["answer"]))
         st.markdown('<div class="mini-tag exp-tag">解説</div>', unsafe_allow_html=True)
-        chem_display(row["explanation"])
+        st.write(render_text(row["explanation"]))
         if st.button("✅ 次へ"): st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
 
 elif subject == "暗唱例文集":
