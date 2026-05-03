@@ -17,7 +17,7 @@ st.set_page_config(
 )
 
 # ==========================================
-# 2. デザイン (既存スタイルを継承しつつ暗唱用を追加)
+# 2. デザイン
 # ==========================================
 st.markdown("""
 <style>
@@ -30,27 +30,24 @@ st.markdown("""
 .blue-card { border-left: 8px solid #2196f3 !important; }
 .highlight { color: #ff9800 !important; font-weight: bold !important; }
 .stButton button { width: 100%; border-radius: 10px; font-weight: bold; min-height: 45px; }
-/* 音声再生用 */
 .audio-container { background-color: #f8f9fa; border-radius: 10px; padding: 10px; display: flex; align-items: center; border: 1px solid #ddd; margin-top: 10px; }
 </style>
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 3. ユーティリティ関数 (数式・音声)
+# 3. ユーティリティ関数
 # ==========================================
 def clean_math(text):
     if pd.isna(text): return ""
     t = str(text).strip()
     t = t.replace("$", "").replace(r"\(", "").replace(r"\)", "").replace(r"\[", "").replace(r"\]", "")
-    t = re.sub(r'([a-zA-Z0-9\)\}])\^([0-9a-zA-Z]+)', r'\1^{\2}', t)
     return t
 
 def render_inline_math(text):
     if pd.isna(text): return ""
     s = str(text)
     pattern = r'([a-zA-Z0-9\\+\-*/=^{}()]+(?:\s*[=+\-*/]\s*[a-zA-Z0-9\\+\-*/=^{}()]+)+|[a-zA-Z]+\^[0-9]+)'
-    def repl(m):
-        return f"${clean_math(m.group(1))}$"
+    def repl(m): return f"${clean_math(m.group(1))}$"
     return re.sub(pattern, repl, s)
 
 def play_voice(text, label="音声を聴く"):
@@ -62,8 +59,7 @@ def play_voice(text, label="音声を聴く"):
             b64 = base64.b64encode(res.content).decode()
             md = f'<div class="audio-container"><span style="color:#ff9800; font-weight:bold; margin-right:auto;">🎧 {label}</span><audio src="data:audio/mp3;base64,{b64}" controls style="height: 30px;"></audio></div>'
             st.markdown(md, unsafe_allow_html=True)
-    except:
-        pass
+    except: pass
 
 # ==========================================
 # 4. データ読み込み
@@ -81,93 +77,57 @@ def load_data(subject):
     try:
         base = os.path.dirname(os.path.abspath(__file__))
         path = os.path.join(base, file_name)
-        df = pd.read_csv(path, encoding="utf-8-sig")
-        df.columns = df.columns.str.strip()
-        return df
-    except Exception as e:
-        st.error(f"読み込み失敗: {e}")
-        return pd.DataFrame()
+        return pd.read_csv(path, encoding="utf-8-sig")
+    except: return pd.DataFrame()
 
 # ==========================================
-# 5. ヘッダー
+# 5. メインロジック
 # ==========================================
 st.markdown('<div class="header-container"><div class="main-title">🧪 🔢 🧬 「理系」スターターパック</div></div>', unsafe_allow_html=True)
 
-# ==========================================
-# 6. サイドバー
-# ==========================================
-st.sidebar.title("🧬 学習メニュー")
-
-subject = st.sidebar.selectbox(
-    "科目を選択",
-    ["選択してください", "システム英単語", "暗唱例文集", "入試数学の定石（数Ⅲ）", "入試数学の定石（ⅠAⅡB C）"]
-)
+subject = st.sidebar.selectbox("科目を選択", ["選択してください", "システム英単語", "暗唱例文集", "入試数学の定石（数Ⅲ）", "入試数学の定石（ⅠAⅡB C）"])
 
 if subject == "選択してください":
-    st.markdown("""
-    <div class="description-box">
-        <p><strong>①英単語</strong>はリーディングで意味を増やすためのツールです。</p>
-        <p><strong>②暗唱例文集</strong>は文法・構文を「使える」ようにするためのツールです。音読を重視しましょう。</p>
-        <p><strong>③数学</strong>は入試の「定石」を整理しました。解法が即座に浮かぶまで繰り返しましょう。</p>
-        <hr style="border:0; border-top:1px solid #eee; margin:15px 0;">
-        <p style="color:#666; font-size:0.9rem;">👈 左のサイドバーから学習したい科目を選択してください。</p>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown('<div class="description-box">左のサイドバーから科目を選択してください。</div>', unsafe_allow_html=True)
     st.stop()
 
-# ==========================================
-# 7. データ取得 & フィルタリング
-# ==========================================
 df_raw = load_data(subject)
-if df_raw.empty:
-    st.warning("データファイルが見つかりません。")
-    st.stop()
-
-# フィルタ処理
 filter_label = "すべて"
+
+# フィルタ設定
 if subject == "システム英単語":
     lv_map = {"すべて": "All", "Fundamental (1-600)": "Fundamental", "Essential (601-1200)": "Essential", "Advanced (1201-1700)": "Advanced", "Final (1701-2027)": "Final"}
     filter_label = st.sidebar.radio("レベル選択", list(lv_map.keys()))
-    current_filter = lv_map[filter_label]
-    filter_col = "level"
+    current_filter, filter_col = lv_map[filter_label], "level"
 elif "category" in df_raw.columns:
     cats = df_raw["category"].unique().tolist()
-    filter_label = st.sidebar.radio("分野・単元選択", ["すべて"] + cats)
-    current_filter = filter_label
-    filter_col = "category"
+    filter_label = st.sidebar.radio("分野選択", ["すべて"] + cats)
+    current_filter, filter_col = filter_label, "category"
 
-# ==========================================
-# 8. セッション管理
-# ==========================================
-changed = ("current_sub" not in st.session_state or st.session_state.current_sub != subject or st.session_state.get("last_filter") != filter_label)
-
-if changed:
-    st.session_state.current_sub = subject
-    st.session_state.last_filter = filter_label
+# セッション初期化
+if "current_sub" not in st.session_state or st.session_state.current_sub != subject or st.session_state.get("last_filter") != filter_label:
+    st.session_state.current_sub, st.session_state.last_filter = subject, filter_label
     df = df_raw.copy() if filter_label == "すべて" else df_raw[df_raw[filter_col].astype(str).str.contains(current_filter, case=False, na=False)]
     st.session_state.df = df.sample(frac=1).reset_index(drop=True)
-    st.session_state.idx = 0
-    st.session_state.answered = False
-    st.session_state.study_mode = "全文暗唱" # 例文用初期値
+    st.session_state.idx, st.session_state.answered, st.session_state.study_mode = 0, False, "全文暗唱"
     if "choices" in st.session_state: del st.session_state["choices"]
 
 row = st.session_state.df.iloc[st.session_state.idx % len(st.session_state.df)]
 
-# ==========================================
-# 9. 学習モード別のUI
-# ==========================================
-
-# --- システム英単語 (4択) ---
+# --- システム英単語表示 ---
 if subject == "システム英単語":
     word = str(row["question"])
     sentence = re.sub(re.escape(word), f"<span class='highlight'>{word}</span>", str(row["sentence"]), flags=re.IGNORECASE)
     st.markdown(f'<div class="card orange-card">{sentence}</div>', unsafe_allow_html=True)
+    
+    # 【追加文言】
+    st.warning("⚠️ シス単本体をメインにしましょう。情報量が全然違います。")
 
     if "choices" not in st.session_state:
         ans_list = [x.strip() for x in re.split(r'[,、;]', str(row["all_answers"])) if x.strip()]
         correct = ans_list[0]
-        dummy_pool = [x.strip() for x in re.split(r'[,、;]', str(row["dummy_pool"])) if x.strip() and x.strip() != correct]
-        choices = [correct] + random.sample(dummy_pool, min(len(dummy_pool), 3))
+        dummies = [x.strip() for x in re.split(r'[,、;]', str(row["dummy_pool"])) if x.strip() and x.strip() != correct]
+        choices = [correct] + random.sample(dummies, min(len(dummies), 3))
         random.shuffle(choices)
         st.session_state.choices, st.session_state.correct = choices, correct
 
@@ -181,45 +141,42 @@ if subject == "システム英単語":
         if st.session_state.selected == st.session_state.correct: st.success("Correct!")
         else: st.error(f"Incorrect... 正解：{st.session_state.correct}")
         st.write(f"**意味:** {row['all_answers']}")
-        play_voice(word, "発音を確認")
+        play_voice(word, "発音")
         if st.button("次の問題へ"):
             st.session_state.idx += 1; st.session_state.answered = False
             del st.session_state["choices"]; st.rerun()
 
-# --- 暗唱例文集 (空欄/全文) ---
+# --- 暗唱例文集表示 ---
 elif subject == "暗唱例文集":
     c1, c2 = st.columns(2)
     if c1.button("🔴 全文暗唱"): st.session_state.study_mode = "全文暗唱"; st.rerun()
     if c2.button("🔵 空欄補充"): st.session_state.study_mode = "空欄補充"; st.rerun()
 
-    disp_text = re.sub(r'\*\*(.*?)\*\*', "[ ____ ]", str(row["English"])) if st.session_state.study_mode == "空欄補充" else "（英文を思い出してください）"
+    is_hint_mode = st.session_state.study_mode == "空欄補充"
+    disp_text = re.sub(r'\*\*(.*?)\*\*', "[ ____ ]", str(row["English"])) if is_hint_mode else "（英文を思い出してください）"
     st.markdown(f'<div class="card orange-card">【日本語】<br><b>{row["japanese"]}</b><hr>【英文】<br>{disp_text}</div>', unsafe_allow_html=True)
 
     if not st.session_state.answered:
         if st.button("答えを確認する"): st.session_state.answered = True; st.rerun()
     else:
         ans_highlight = re.sub(r'\*\*(.*?)\*\*', r'<span style="color:#e91e63; font-weight:800; border-bottom:2px solid;">\1</span>', str(row["English"]))
-        st.markdown(f'<div class="card" style="background:#fff9db !important;">【正解】<br><span style="font-size:1.1rem; font-family:serif;">{ans_highlight}</span></div>', unsafe_allow_html=True)
-        play_voice(str(row["English"]).replace("**", ""), "音声を聴く")
+        st.markdown(f'<div class="card" style="background:#fff9db !important;">【正解】<br><span style="font-size:1.1rem;">{ans_highlight}</span></div>', unsafe_allow_html=True)
+        
+        # 【追加文言：空欄補充モード時のみ】
+        if is_hint_mode:
+            st.info("💡 [　　]の中は１語とは限りません")
+            
+        play_voice(str(row["English"]).replace("**", ""), "音声")
         if st.button("次の問題へ"):
             st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
 
-# --- 数学モード (定石表示) ---
+# --- 数学表示 ---
 else:
     st.markdown(f'<div class="card blue-card">【{row["category"]}】</div>', unsafe_allow_html=True)
     st.latex(clean_math(row["question"]))
-
     if not st.session_state.answered:
-        if st.button("定石と解答を確認する"):
-            st.session_state.answered = True; st.rerun()
+        if st.button("定石と解答を確認する"): st.session_state.answered = True; st.rerun()
     else:
-        st.markdown("---")
-        st.markdown("##### 💡 攻略の定石")
-        st.info(str(row["strategy"]))
-        st.markdown("##### 【解答】")
+        st.info(f"💡 攻略の定石\n\n{row['strategy']}")
         st.latex(clean_math(row["answer"]))
-        if "explanation" in row and pd.notna(row["explanation"]):
-            st.markdown("##### 📝 ポイント解説")
-            st.markdown(render_inline_math(row["explanation"]))
-        if st.button("次の問題へ"):
-            st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
+        if st.button("次の問題へ"): st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
