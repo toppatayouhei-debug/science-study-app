@@ -18,7 +18,7 @@ st.set_page_config(
 )
 
 # ==================================================
-# 2. CSS
+# 2. CSS (変更なし)
 # ==================================================
 st.markdown("""
 <style>
@@ -30,6 +30,7 @@ st.markdown("""
 .card { background:white; padding:22px; border-radius:18px; box-shadow:0 8px 20px rgba(0,0,0,0.06); margin-bottom:1rem; line-height:1.7; font-size:1.05rem; color:#111; }
 .orange-card { border-left: 8px solid #ff9800; } 
 .green-card  { border-left: 8px solid #4caf50; }
+.blue-card   { border-left: 8px solid #2196f3; }
 .highlight { color: #ff9800 !important; font-weight: bold !important; }
 
 /* 説明ボックス */
@@ -65,22 +66,6 @@ st.markdown("""
 # ==================================================
 # 3. ユーティリティ関数
 # ==================================================
-
-def render_text(text):
-    """シンプルな化学式置換（崩れにくい初期版に近いロジック）"""
-    if pd.isna(text): return ""
-    t = str(text)
-    # 化学式の下付き数字を置換 (例: H2O -> H₂O)
-    t = re.sub(r'([A-Z][a-z]?)(\d+)', r'\1_{\2}', t)
-    # イオンの上付きを置換 (例: ^2- -> ^{2-})
-    t = re.sub(r'\^(\d*[\+\-])', r'^{\1}', t)
-    
-    # 文章の中に数式が含まれる可能性を考慮し、全体を$で囲むのではなく、
-    # 置換が発生した箇所があればその文字列をLaTeXとして表示
-    if "_{" in t or "^{" in t:
-        return f"${t}$"
-    return t
-
 def play_voice(text, label="音声を聴く"):
     try:
         q = urllib.parse.quote(text)
@@ -104,7 +89,8 @@ def load_csv(subject):
     files = {
         "システム英単語": "final_tango_list.csv",
         "暗唱例文集": "english_sent.csv",
-        "化学（一問一答）": "chemistry.csv"
+        "化学（一問一答）": "chemistry.csv",
+        "地理（一問一答）": "geography.csv"
     }
     try:
         df = pd.read_csv(files[subject], encoding="utf-8-sig").dropna(how='all')
@@ -118,7 +104,8 @@ def load_csv(subject):
 st.markdown('<div class="main-title">🧪 🔢 🧬 「理系」スターターパック</div>', unsafe_allow_html=True)
 st.sidebar.title("🧬 学習メニュー")
 
-subject = st.sidebar.selectbox("科目を選択", ["選択してください", "システム英単語", "暗唱例文集", "化学（一問一答）"])
+# 選択肢に「地理（一問一答）」を追加
+subject = st.sidebar.selectbox("科目を選択", ["選択してください", "システム英単語", "暗唱例文集", "化学（一問一答）", "地理（一問一答）"])
 
 if subject == "選択してください":
     st.markdown("""
@@ -136,7 +123,7 @@ if raw_df.empty:
     st.sidebar.error(f"⚠️ {subject} のファイルが見つかりません。")
     st.stop()
 
-# フィルタリング
+# フィルタリング（化学と同様のロジック）
 current_filter = "All"
 if subject == "システム英単語":
     lv_map = {"すべて":"All", "Fundamental(1-600)":"Fundamental", "Essential(601-1200)":"Essential", "Advanced(1201-1700)":"Advanced", "Final(1701-2027)":"Final"}
@@ -175,6 +162,7 @@ st.progress((idx + 1) / len(active_df))
 # 6. 表示UI
 # ==================================================
 
+# --- 暗唱例文集 ---
 if subject == "暗唱例文集":
     st.markdown('<div class="description-box"><b>【学習モード】</b><br>・全文暗唱でわからないときは<b>「ヒント」ボタン</b>を押しましょう。</div>', unsafe_allow_html=True)
     if "study_mode" not in st.session_state: st.session_state.study_mode = "全文暗唱"
@@ -197,6 +185,7 @@ if subject == "暗唱例文集":
         play_voice(str(row["English"]).replace("**", ""))
         if st.button("✅ 次へ"): st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
 
+# --- システム英単語 ---
 elif subject == "システム英単語":
     word = str(row["question"])
     sent = re.sub(re.escape(word), f"<span class='highlight'>{word}</span>", str(row["sentence"]), flags=re.IGNORECASE)
@@ -225,11 +214,13 @@ elif subject == "システム英単語":
             del st.session_state.choices
             st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
 
-elif subject == "化学（一問一答）":
-    st.markdown(f'<div class="card green-card">【{row["chapter"]}】</div>', unsafe_allow_html=True)
+# --- 化学 または 地理（一問一答） ---
+elif subject in ["化学（一問一答）", "地理（一問一答）"]:
+    # カードの色を分ける（地理は青、化学は緑）
+    card_class = "blue-card" if subject == "地理（一問一答）" else "green-card"
+    st.markdown(f'<div class="card {card_class}">【{row["chapter"]}】</div>', unsafe_allow_html=True)
     
-    # 修正ポイント：render_textを通さず、直接 st.markdown で描画する
-    # これにより、CSV内の $...$ が正しく認識されます
+    # 質問表示
     st.markdown(str(row["question"]))
     
     if not st.session_state.answered:
