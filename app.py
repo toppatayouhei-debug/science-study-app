@@ -11,14 +11,14 @@ import requests
 # 1. 基本設定
 # ==================================================
 st.set_page_config(
-    page_title="「理系」スターターパック",
+    page_title="理系の暗記モノ 完全攻略",
     page_icon="🧬",
     layout="centered",
     initial_sidebar_state="expanded"
 )
 
 # ==================================================
-# 2. CSS (変更なし)
+# 2. CSS
 # ==================================================
 st.markdown("""
 <style>
@@ -101,10 +101,10 @@ def load_csv(subject):
 # ==================================================
 # 5. メイン画面
 # ==================================================
-st.markdown('<div class="main-title">🧪 🔢 🧬 「理系」スターターパック</div>', unsafe_allow_html=True)
+# タイトルを更新
+st.markdown('<div class="main-title">🧪 🔢 🧬 理系の暗記モノ 完全攻略</div>', unsafe_allow_html=True)
 st.sidebar.title("🧬 学習メニュー")
 
-# 選択肢に「地理（一問一答）」を追加
 subject = st.sidebar.selectbox("科目を選択", ["選択してください", "システム英単語", "暗唱例文集", "化学（一問一答）", "地理（一問一答）"])
 
 if subject == "選択してください":
@@ -123,7 +123,7 @@ if raw_df.empty:
     st.sidebar.error(f"⚠️ {subject} のファイルが見つかりません。")
     st.stop()
 
-# フィルタリング（化学と同様のロジック）
+# フィルタリング
 current_filter = "All"
 if subject == "システム英単語":
     lv_map = {"すべて":"All", "Fundamental(1-600)":"Fundamental", "Essential(601-1200)":"Essential", "Advanced(1201-1700)":"Advanced", "Final(1701-2027)":"Final"}
@@ -216,11 +216,9 @@ elif subject == "システム英単語":
 
 # --- 化学 または 地理（一問一答） ---
 elif subject in ["化学（一問一答）", "地理（一問一答）"]:
-    # カードの色を分ける（地理は青、化学は緑）
     card_class = "blue-card" if subject == "地理（一問一答）" else "green-card"
     st.markdown(f'<div class="card {card_class}">【{row["chapter"]}】</div>', unsafe_allow_html=True)
     
-    # 質問表示
     st.markdown(str(row["question"]))
     
     if not st.session_state.answered:
