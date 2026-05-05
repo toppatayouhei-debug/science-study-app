@@ -31,6 +31,7 @@ st.markdown("""
 .orange-card { border-left: 8px solid #ff9800; } 
 .green-card  { border-left: 8px solid #4caf50; }
 .blue-card   { border-left: 8px solid #2196f3; }
+.pink-card   { border-left: 8px solid #e91e63; } /* 生物用に追加 */
 .highlight { color: #ff9800 !important; font-weight: bold !important; }
 
 /* 説明ボックス */
@@ -90,7 +91,8 @@ def load_csv(subject):
         "システム英単語": "final_tango_list.csv",
         "暗唱例文集": "english_sent.csv",
         "化学（一問一答）": "chemistry.csv",
-        "地理（一問一答）": "geography.csv"
+        "地理（一問一答）": "geography.csv",
+        "生物（一問一答）": "biology.csv"  # 新規追加
     }
     try:
         df = pd.read_csv(files[subject], encoding="utf-8-sig").dropna(how='all')
@@ -101,11 +103,14 @@ def load_csv(subject):
 # ==================================================
 # 5. メイン画面
 # ==================================================
-# タイトルを更新
 st.markdown('<div class="main-title">🧪 🔢 🧬 理系の暗記モノ 完全攻略</div>', unsafe_allow_html=True)
 st.sidebar.title("🧬 学習メニュー")
 
-subject = st.sidebar.selectbox("科目を選択", ["選択してください", "システム英単語", "暗唱例文集", "化学（一問一答）", "地理（一問一答）"])
+# 科目リストを更新
+subject = st.sidebar.selectbox(
+    "科目を選択", 
+    ["選択してください", "システム英単語", "暗唱例文集", "化学（一問一答）", "地理（一問一答）", "生物（一問一答）"]
+)
 
 if subject == "選択してください":
     st.markdown("""
@@ -123,7 +128,7 @@ if raw_df.empty:
     st.sidebar.error(f"⚠️ {subject} のファイルが見つかりません。")
     st.stop()
 
-# フィルタリング
+# フィルタリング処理
 current_filter = "All"
 if subject == "システム英単語":
     lv_map = {"すべて":"All", "Fundamental(1-600)":"Fundamental", "Essential(601-1200)":"Essential", "Advanced(1201-1700)":"Advanced", "Final(1701-2027)":"Final"}
@@ -142,6 +147,7 @@ elif "chapter" in raw_df.columns:
 else:
     df = raw_df
 
+# セッション管理（科目やフィルタが変わったらリセット）
 if st.session_state.get("quiz_subject") != subject or st.session_state.get("quiz_filter") != current_filter:
     reset_engine()
     st.session_state.quiz_subject, st.session_state.quiz_filter = subject, current_filter
@@ -214,20 +220,28 @@ elif subject == "システム英単語":
             del st.session_state.choices
             st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
 
-# --- 化学 または 地理（一問一答） ---
-elif subject in ["化学（一問一答）", "地理（一問一答）"]:
-    card_class = "blue-card" if subject == "地理（一問一答）" else "green-card"
+# --- 化学・地理・生物（一問一答） ---
+elif subject in ["化学（一問一答）", "地理（一問一答）", "生物（一問一答）"]:
+    # カードの色の出し分け
+    if subject == "地理（一問一答）":
+        card_class = "blue-card"
+    elif subject == "生物（一問一答）":
+        card_class = "pink-card" # 生物はピンク
+    else:
+        card_class = "green-card" # 化学はグリーン
+        
     st.markdown(f'<div class="card {card_class}">【{row["chapter"]}】</div>', unsafe_allow_html=True)
     
-    st.markdown(str(row["question"]))
+    # 問題の表示
+    st.markdown(f'<div style="font-size:1.1rem; font-weight:500;">{str(row["question"])}</div>', unsafe_allow_html=True)
     
     if not st.session_state.answered:
         if st.button("答えを確認する"): st.session_state.answered = True; st.rerun()
     else:
         st.markdown('<div class="mini-tag ans-tag">正解</div>', unsafe_allow_html=True)
-        st.markdown(str(row["answer"]))
+        st.markdown(f'<div style="font-size:1.2rem; font-weight:bold; color:#d32f2f;">{str(row["answer"])}</div>', unsafe_allow_html=True)
         
         st.markdown('<div class="mini-tag exp-tag">解説</div>', unsafe_allow_html=True)
-        st.markdown(str(row["explanation"]))
+        st.markdown(f'<div style="background:#f9f9f9; padding:15px; border-radius:10px; border:1px solid #eee;">{str(row["explanation"])}</div>', unsafe_allow_html=True)
         
         if st.button("✅ 次へ"): st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
