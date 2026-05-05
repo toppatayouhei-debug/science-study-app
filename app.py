@@ -17,7 +17,7 @@ st.set_page_config(
 )
 
 # ==================================================
-# 2. CSS（色の追加と修正）
+# 2. CSS（カードの余白調整を含む）
 # ==================================================
 st.markdown("""
 <style>
@@ -25,30 +25,45 @@ st.markdown("""
 .block-container { max-width:720px; padding-top: 3rem !important; } 
 .main-title { text-align:center; font-size:1.8rem; font-weight:900; margin-bottom:0.2rem; color:#1e3a8a; }
 
-/* 問題カード */
-.card { background:white; padding:22px; border-radius:18px; box-shadow:0 8px 20px rgba(0,0,0,0.06); margin-bottom:1rem; line-height:1.7; font-size:1.05rem; color:#111; }
+/* 問題カード（分野表示枠をスリム化） */
+.card { 
+    background:white; 
+    padding: 12px 20px; 
+    border-radius:18px; 
+    box-shadow:0 8px 20px rgba(0,0,0,0.06); 
+    margin-bottom: 0.8rem; 
+    line-height: 1.5; 
+    font-size: 1rem; 
+    color:#111; 
+}
 .orange-card { border-left: 8px solid #ff9800; } 
 .green-card  { border-left: 8px solid #4caf50; }
-.blue-card   { border-left: 8px solid #2196f3; } /* 数学用（水色） */
-.purple-card { border-left: 8px solid #9c27b0; } /* 地理用（紫） */
-.pink-card   { border-left: 8px solid #e91e63; }
+.blue-card   { border-left: 8px solid #2196f3; } /* 数学用 */
+.purple-card { border-left: 8px solid #9c27b0; } /* 地理用 */
+.pink-card   { border-left: 8px solid #e91e63; } /* 生物用 */
+
 .highlight { color: #ff9800 !important; font-weight: bold !important; }
 
 /* 注意書き用スタイル */
-.warning-box { background-color: #fff4f4; border: 1px solid #ffcdd2; color: #b71c1c; padding: 12px; border-radius: 10px; font-size: 0.9rem; margin-bottom: 15px; font-weight: bold; }
+.warning-box { 
+    background-color: #fff4f4; 
+    border: 1px solid #ffcdd2; 
+    color: #b71c1c; 
+    padding: 12px; 
+    border-radius: 10px; 
+    font-size: 0.9rem; 
+    margin-bottom: 15px; 
+    font-weight: bold; 
+}
 
 /* タイトルタグ */
 .mini-tag { display: inline-block; padding: 2px 12px; border-radius: 8px; font-size: 0.8rem; font-weight: 800; margin-bottom: 8px; margin-top: 10px; }
 
-/* 数学（水色） */
+/* 各科目の色設定 */
 .tag-blue-ans { background-color: #2196f3; color: white; }
 .tag-blue-exp { background-color: #e3f2fd; color: #1565c0; border: 1px solid #2196f3; }
-
-/* 地理（紫） */
 .tag-purple-ans { background-color: #9c27b0; color: white; }
 .tag-purple-exp { background-color: #f3e5f5; color: #7b1fa2; border: 1px solid #9c27b0; }
-
-/* 生物・化学 */
 .tag-green-ans { background-color: #4caf50; color: white; }
 .tag-green-exp { background-color: #f1f8e9; color: #2e7d32; border: 1px solid #4caf50; }
 .tag-pink-ans { background-color: #e91e63; color: white; }
@@ -113,7 +128,6 @@ if raw_df.empty:
     st.sidebar.error(f"⚠️ {subject} のファイルが見つかりません。")
     st.stop()
 
-# フィルタリング処理
 if "chapter" in raw_df.columns or "Chapter" in raw_df.columns:
     c_col = "chapter" if "chapter" in raw_df.columns else "Chapter"
     chaps = raw_df[c_col].dropna().unique().tolist()
@@ -151,27 +165,24 @@ st.progress((idx + 1) / len(active_df))
 # --- 数学Ⅲ（定石定着） ---
 if subject == "数学Ⅲ（定石定着）":
     st.markdown(f'<div class="card blue-card">【{row.get("chapter", "設定なし")}】</div>', unsafe_allow_html=True)
-    st.write(row.get("question", "")) # 数式対応
-    
-    # 【追加】問題表示時点で注意書きを表示
+    st.write(row.get("question", "")) 
     st.markdown('<div class="warning-box">⚠️見た瞬間に解答の方針が浮かんでほしい問題を並べました。ここで解法を身につけて、必ず演習で手を動かして計算すること。計算力は大事です。</div>', unsafe_allow_html=True)
 
     if not st.session_state.answered:
-        if st.button("答え・方針を確認する"):
-            st.session_state.answered = True
-            st.rerun()
+        if st.button("答え・方針を確認する"): st.session_state.answered = True; st.rerun()
     else:
         st.markdown('<div class="mini-tag tag-blue-ans">方針・正解</div>', unsafe_allow_html=True)
-        st.write(row.get("answer", "")) # 数式対応
+        st.write(row.get("answer", "")) 
         st.markdown('<div class="mini-tag tag-blue-exp">解説</div>', unsafe_allow_html=True)
-        st.write(row.get("explanation", "")) # 数式対応
-        if st.button("✅ 次へ"):
-            st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
+        st.write(row.get("explanation", "")) 
+        if st.button("✅ 次へ"): st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
 
 # --- 地理（一問一答） ---
 elif subject == "地理（一問一答）":
     st.markdown(f'<div class="card purple-card">【{row.get("chapter", row.get("Chapter", ""))}】</div>', unsafe_allow_html=True)
     st.markdown(str(row.get("question", row.get("Question", ""))))
+    st.markdown('<div class="warning-box">⚠️共通テストで用語が問われることはありません。これらの知識をもとに「考える」訓練を重ねてください。</div>', unsafe_allow_html=True)
+
     if not st.session_state.answered:
         if st.button("答えを確認する"): st.session_state.answered = True; st.rerun()
     else:
@@ -186,8 +197,6 @@ elif subject == "システム英単語":
     word = str(row["question"])
     sent = re.sub(re.escape(word), f"<span class='highlight'>{word}</span>", str(row["sentence"]), flags=re.IGNORECASE)
     st.markdown(f'<div class="card orange-card">{sent}</div>', unsafe_allow_html=True)
-    
-    # 【追加】問題表示時点で注意書きを表示
     st.markdown('<div class="warning-box">⚠️シス単本体をメインにしましょう。情報量が全然違います。</div>', unsafe_allow_html=True)
 
     if "choices" not in st.session_state:
@@ -207,9 +216,7 @@ elif subject == "システム英単語":
         else: st.error(f"不正解... 正解：{st.session_state.correct}")
         st.info(f"意味：{row['all_answers']}\n訳：{row['translation']}")
         play_voice(word)
-        if st.button("✅ 次の問題へ"):
-            del st.session_state.choices
-            st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
+        if st.button("✅ 次の問題へ"): del st.session_state.choices; st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
 
 # --- 暗唱例文集 ---
 elif subject == "暗唱例文集":
@@ -238,6 +245,12 @@ elif subject in ["化学（一問一答）", "生物（一問一答）"]:
     
     st.markdown(f'<div class="card {card_c}">【{row.get("chapter", row.get("Chapter", ""))}】</div>', unsafe_allow_html=True)
     st.markdown(str(row.get("question", row.get("Question", ""))))
+
+    if subject == "化学（一問一答）":
+        st.markdown('<div class="warning-box">⚠️主に知識を整理するために用意しました。計算分野は手を動かして問題集を解きましょう。</div>', unsafe_allow_html=True)
+    elif subject == "生物（一問一答）":
+        st.markdown('<div class="warning-box">⚠️主に知識を整理するために用意しました。計算問題や実験問題は考えて、手を動かして、問題集を解きましょう。</div>', unsafe_allow_html=True)
+
     if not st.session_state.answered:
         if st.button("答えを確認する"): st.session_state.answered = True; st.rerun()
     else:
