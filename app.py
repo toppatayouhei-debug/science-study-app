@@ -34,6 +34,9 @@ st.markdown("""
 .pink-card   { border-left: 8px solid #e91e63; }
 .highlight { color: #ff9800 !important; font-weight: bold !important; }
 
+/* 注意書き用スタイル */
+.warning-box { background-color: #fff4f4; border: 1px solid #ffcdd2; color: #b71c1c; padding: 12px; border-radius: 10px; font-size: 0.9rem; margin-bottom: 15px; font-weight: bold; }
+
 /* タイトルタグ */
 .mini-tag { display: inline-block; padding: 2px 12px; border-radius: 8px; font-size: 0.8rem; font-weight: 800; margin-bottom: 8px; margin-top: 10px; }
 
@@ -47,7 +50,7 @@ st.markdown("""
 
 /* 生物・化学 */
 .tag-green-ans { background-color: #4caf50; color: white; }
-.tag-green-exp { background-color: #f1f8e green-ans9; color: #2e7d32; border: 1px solid #4caf50; }
+.tag-green-exp { background-color: #f1f8e9; color: #2e7d32; border: 1px solid #4caf50; }
 .tag-pink-ans { background-color: #e91e63; color: white; }
 .tag-pink-exp { background-color: #fce4ec; color: #880e4f; border: 1px solid #e91e63; }
 
@@ -80,7 +83,7 @@ def reset_engine():
 @st.cache_data
 def load_csv(subject):
     files = {
-        "数学Ⅲ（方針確認）": "math3.csv",
+        "数学Ⅲ（定石定着）": "math3.csv",
         "システム英単語": "final_tango_list.csv",
         "暗唱例文集": "english_sent.csv",
         "化学（一問一答）": "chemistry.csv",
@@ -99,7 +102,7 @@ def load_csv(subject):
 st.markdown('<div class="main-title">🧪 🔢 🧬 理系の暗記モノ 完全攻略</div>', unsafe_allow_html=True)
 st.sidebar.title("🧬 学習メニュー")
 
-subject = st.sidebar.selectbox("科目を選択", ["選択してください", "数学Ⅲ（方針確認）", "システム英単語", "暗唱例文集", "化学（一問一答）", "地理（一問一答）", "生物（一問一答）"])
+subject = st.sidebar.selectbox("科目を選択", ["選択してください", "数学Ⅲ（定石定着）", "システム英単語", "暗唱例文集", "化学（一問一答）", "地理（一問一答）", "生物（一問一答）"])
 
 if subject == "選択してください":
     st.markdown('<div class="description-box"><b>【学習の進め方】</b><br>1. サイドバーから科目を選択。<br>2. 範囲を絞り込んで学習開始。</div>', unsafe_allow_html=True)
@@ -145,8 +148,8 @@ st.progress((idx + 1) / len(active_df))
 # 6. 各科目の表示UI
 # ==================================================
 
-# --- 数学Ⅲ（方針確認） ---
-if subject == "数学Ⅲ（方針確認）":
+# --- 数学Ⅲ（定石定着） ---
+if subject == "数学Ⅲ（定石定着）":
     st.markdown(f'<div class="card blue-card">【{row.get("chapter", "設定なし")}】</div>', unsafe_allow_html=True)
     st.write(row.get("question", "")) # 数式対応
     
@@ -155,6 +158,7 @@ if subject == "数学Ⅲ（方針確認）":
             st.session_state.answered = True
             st.rerun()
     else:
+        st.markdown('<div class="warning-box">⚠️見た瞬間に解答の方針が浮かんでほしい問題を並べました。ここで解法を身につけて、必ず演習で手を動かして計算すること。計算力は大事です。</div>', unsafe_allow_html=True)
         st.markdown('<div class="mini-tag tag-blue-ans">方針・正解</div>', unsafe_allow_html=True)
         st.write(row.get("answer", "")) # 数式対応
         st.markdown('<div class="mini-tag tag-blue-exp">解説</div>', unsafe_allow_html=True)
@@ -174,6 +178,34 @@ elif subject == "地理（一問一答）":
         st.markdown('<div class="mini-tag tag-purple-exp">解説</div>', unsafe_allow_html=True)
         st.markdown(str(row.get("explanation", row.get("Explanation", ""))))
         if st.button("✅ 次へ"): st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
+
+# --- システム英単語 ---
+elif subject == "システム英単語":
+    word = str(row["question"])
+    sent = re.sub(re.escape(word), f"<span class='highlight'>{word}</span>", str(row["sentence"]), flags=re.IGNORECASE)
+    st.markdown(f'<div class="card orange-card">{sent}</div>', unsafe_allow_html=True)
+    
+    if "choices" not in st.session_state:
+        correct = [x.strip() for x in re.split(r'[,、;]', str(row["all_answers"]))][0]
+        dummies = [x.strip() for x in re.split(r'[,、;]', str(row["dummy_pool"])) if x.strip() != correct]
+        st.session_state.choices = random.sample([correct] + random.sample(dummies, 3), 4)
+        random.shuffle(st.session_state.choices)
+        st.session_state.correct = correct
+
+    cols = st.columns(2)
+    for i, val in enumerate(st.session_state.choices):
+        if cols[i%2].button(val, key=f"t_{i}", disabled=st.session_state.answered):
+            st.session_state.selected, st.session_state.answered = val, True; st.rerun()
+
+    if st.session_state.answered:
+        st.markdown('<div class="warning-box">⚠️シス単本体をメインにしましょう。情報量が全然違います。</div>', unsafe_allow_html=True)
+        if st.session_state.selected == st.session_state.correct: st.success("正解！")
+        else: st.error(f"不正解... 正解：{st.session_state.correct}")
+        st.info(f"意味：{row['all_answers']}\n訳：{row['translation']}")
+        play_voice(word)
+        if st.button("✅ 次の問題へ"):
+            del st.session_state.choices
+            st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
 
 # --- 暗唱例文集 ---
 elif subject == "暗唱例文集":
@@ -210,30 +242,3 @@ elif subject in ["化学（一問一答）", "生物（一問一答）"]:
         st.markdown(f'<div class="mini-tag {t_exp}">解説</div>', unsafe_allow_html=True)
         st.markdown(str(row.get("explanation", row.get("Explanation", ""))))
         if st.button("✅ 次へ"): st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
-
-# --- システム英単語 ---
-elif subject == "システム英単語":
-    word = str(row["question"])
-    sent = re.sub(re.escape(word), f"<span class='highlight'>{word}</span>", str(row["sentence"]), flags=re.IGNORECASE)
-    st.markdown(f'<div class="card orange-card">{sent}</div>', unsafe_allow_html=True)
-    
-    if "choices" not in st.session_state:
-        correct = [x.strip() for x in re.split(r'[,、;]', str(row["all_answers"]))][0]
-        dummies = [x.strip() for x in re.split(r'[,、;]', str(row["dummy_pool"])) if x.strip() != correct]
-        st.session_state.choices = random.sample([correct] + random.sample(dummies, 3), 4)
-        random.shuffle(st.session_state.choices)
-        st.session_state.correct = correct
-
-    cols = st.columns(2)
-    for i, val in enumerate(st.session_state.choices):
-        if cols[i%2].button(val, key=f"t_{i}", disabled=st.session_state.answered):
-            st.session_state.selected, st.session_state.answered = val, True; st.rerun()
-
-    if st.session_state.answered:
-        if st.session_state.selected == st.session_state.correct: st.success("正解！")
-        else: st.error(f"不正解... 正解：{st.session_state.correct}")
-        st.info(f"意味：{row['all_answers']}\n訳：{row['translation']}")
-        play_voice(word)
-        if st.button("✅ 次の問題へ"):
-            del st.session_state.choices
-            st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
