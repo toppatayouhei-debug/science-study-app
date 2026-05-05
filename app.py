@@ -31,13 +31,13 @@ st.markdown("""
 .orange-card { border-left: 8px solid #ff9800; } 
 .green-card  { border-left: 8px solid #4caf50; }
 .blue-card   { border-left: 8px solid #2196f3; }
-.pink-card   { border-left: 8px solid #e91e63; } /* 生物用：ピンク */
+.pink-card   { border-left: 8px solid #e91e63; }
 .highlight { color: #ff9800 !important; font-weight: bold !important; }
 
 /* 説明ボックス */
 .description-box { background-color: #ffffff; padding: 20px; border-radius: 12px; border: 1px solid #e5e7eb; margin-bottom: 25px; line-height: 1.6; }
 
-/* タイトルタグ */
+/* タイトルタグ（基本） */
 .mini-tag {
     display: inline-block;
     padding: 2px 12px;
@@ -47,8 +47,17 @@ st.markdown("""
     margin-bottom: 8px;
     margin-top: 10px;
 }
-.ans-tag { background-color: #4caf50; color: white; }
-.exp-tag { background-color: #f1f8e9; color: #2e7d32; border: 1px solid #4caf50; }
+
+/* 科目ごとのタグ色設定 */
+.tag-green-ans { background-color: #4caf50; color: white; }
+.tag-green-exp { background-color: #f1f8e9; color: #2e7d32; border: 1px solid #4caf50; }
+
+.tag-blue-ans { background-color: #2196f3; color: white; }
+.tag-blue-exp { background-color: #e3f2fd; color: #1565c0; border: 1px solid #2196f3; }
+
+.tag-pink-ans { background-color: #e91e63; color: white; }
+.tag-pink-exp { background-color: #fce4ec; color: #880e4f; border: 1px solid #e91e63; }
+
 .english-ans-tag { background-color: #fff9db; color: #fab005; border: 1px solid #fab005; }
 
 /* ボタン */
@@ -95,9 +104,7 @@ def load_csv(subject):
         "生物（一問一答）": "biology.csv"
     }
     try:
-        # BOM付きUTF-8に対応し、空白行を削除
         df = pd.read_csv(files[subject], encoding="utf-8-sig").dropna(how='all')
-        # 列名の前後から見えないゴミ（スペースや改行）を除去
         df.columns = [str(c).strip() for c in df.columns]
         return df
     except: return pd.DataFrame()
@@ -134,7 +141,6 @@ if subject == "システム英単語":
     current_filter = lv_map[sel_lv]
     df = raw_df if current_filter == "All" else raw_df[raw_df["level"].astype(str).str.contains(current_filter, na=False)]
 elif "chapter" in raw_df.columns or "Chapter" in raw_df.columns:
-    # 列名の大文字小文字に対応
     c_col = "chapter" if "chapter" in raw_df.columns else "Chapter"
     chaps = raw_df[c_col].dropna().unique().tolist()
     def extract_num(t):
@@ -221,13 +227,16 @@ elif subject == "システム英単語":
 
 # --- 化学・地理・生物（一問一答） ---
 elif subject in ["化学（一問一答）", "地理（一問一答）", "生物（一問一答）"]:
-    # 色分け
-    if subject == "地理（一問一答）": card_class = "blue-card"
-    elif subject == "生物（一問一答）": card_class = "pink-card"
-    else: card_class = "green-card"
+    # 科目に応じたスタイル設定
+    if subject == "地理（一問一答）":
+        card_class, ans_tag, exp_tag = "blue-card", "tag-blue-ans", "tag-blue-exp"
+    elif subject == "生物（一問一答）":
+        card_class, ans_tag, exp_tag = "pink-card", "tag-pink-ans", "tag-pink-exp"
+    else:
+        card_class, ans_tag, exp_tag = "green-card", "tag-green-ans", "tag-green-exp"
     
-    # 【重要：保険の書き方】.get() を使うことで、CSVの列名に多少のズレがあってもエラーを防ぎます
-    chap_val = row.get("chapter", row.get("Chapter", "範囲未指定"))
+    # データの取得（保険付き）
+    chap_val = row.get("chapter", row.get("Chapter", "範囲未設定"))
     q_val = row.get("question", row.get("Question", "問題が見つかりません"))
     a_val = row.get("answer", row.get("Answer", "正解が見つかりません"))
     e_val = row.get("explanation", row.get("Explanation", "解説はありません"))
@@ -238,8 +247,9 @@ elif subject in ["化学（一問一答）", "地理（一問一答）", "生物
     if not st.session_state.answered:
         if st.button("答えを確認する"): st.session_state.answered = True; st.rerun()
     else:
-        st.markdown('<div class="mini-tag ans-tag">正解</div>', unsafe_allow_html=True)
+        # 動的に決まったクラス（ans_tag / exp_tag）を適用
+        st.markdown(f'<div class="mini-tag {ans_tag}">正解</div>', unsafe_allow_html=True)
         st.markdown(str(a_val))
-        st.markdown('<div class="mini-tag exp-tag">解説</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="mini-tag {exp_tag}">解説</div>', unsafe_allow_html=True)
         st.markdown(str(e_val))
         if st.button("✅ 次へ"): st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
