@@ -153,12 +153,14 @@ if subject == "数学Ⅲ（定石定着）":
     st.markdown(f'<div class="card blue-card">【{row.get("chapter", "設定なし")}】</div>', unsafe_allow_html=True)
     st.write(row.get("question", "")) # 数式対応
     
+    # 【追加】問題表示時点で注意書きを表示
+    st.markdown('<div class="warning-box">⚠️見た瞬間に解答の方針が浮かんでほしい問題を並べました。ここで解法を身につけて、必ず演習で手を動かして計算すること。計算力は大事です。</div>', unsafe_allow_html=True)
+
     if not st.session_state.answered:
         if st.button("答え・方針を確認する"):
             st.session_state.answered = True
             st.rerun()
     else:
-        st.markdown('<div class="warning-box">⚠️見た瞬間に解答の方針が浮かんでほしい問題を並べました。ここで解法を身につけて、必ず演習で手を動かして計算すること。計算力は大事です。</div>', unsafe_allow_html=True)
         st.markdown('<div class="mini-tag tag-blue-ans">方針・正解</div>', unsafe_allow_html=True)
         st.write(row.get("answer", "")) # 数式対応
         st.markdown('<div class="mini-tag tag-blue-exp">解説</div>', unsafe_allow_html=True)
@@ -185,6 +187,9 @@ elif subject == "システム英単語":
     sent = re.sub(re.escape(word), f"<span class='highlight'>{word}</span>", str(row["sentence"]), flags=re.IGNORECASE)
     st.markdown(f'<div class="card orange-card">{sent}</div>', unsafe_allow_html=True)
     
+    # 【追加】問題表示時点で注意書きを表示
+    st.markdown('<div class="warning-box">⚠️シス単本体をメインにしましょう。情報量が全然違います。</div>', unsafe_allow_html=True)
+
     if "choices" not in st.session_state:
         correct = [x.strip() for x in re.split(r'[,、;]', str(row["all_answers"]))][0]
         dummies = [x.strip() for x in re.split(r'[,、;]', str(row["dummy_pool"])) if x.strip() != correct]
@@ -198,7 +203,6 @@ elif subject == "システム英単語":
             st.session_state.selected, st.session_state.answered = val, True; st.rerun()
 
     if st.session_state.answered:
-        st.markdown('<div class="warning-box">⚠️シス単本体をメインにしましょう。情報量が全然違います。</div>', unsafe_allow_html=True)
         if st.session_state.selected == st.session_state.correct: st.success("正解！")
         else: st.error(f"不正解... 正解：{st.session_state.correct}")
         st.info(f"意味：{row['all_answers']}\n訳：{row['translation']}")
