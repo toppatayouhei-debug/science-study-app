@@ -180,16 +180,16 @@ if subject == "数学Ⅲ（定石定着）":
 # --- 地理（一問一答） ---
 elif subject == "地理（一問一答）":
     st.markdown(f'<div class="card purple-card">【{row.get("chapter", row.get("Chapter", ""))}】</div>', unsafe_allow_html=True)
-    st.markdown(str(row.get("question", row.get("Question", ""))))
+    st.markdown(f'<div style="font-size: 1.15rem;">{str(row.get("question", row.get("Question", "")))}</div>', unsafe_allow_html=True)
     st.markdown('<div class="warning-box">⚠️共通テストで用語が問われることはありません。これらの知識をもとに「考える」訓練を重ねてください。</div>', unsafe_allow_html=True)
 
     if not st.session_state.answered:
         if st.button("答えを確認する"): st.session_state.answered = True; st.rerun()
     else:
         st.markdown('<div class="mini-tag tag-purple-ans">正解</div>', unsafe_allow_html=True)
-        st.markdown(str(row.get("answer", row.get("Answer", ""))))
+        st.markdown(f'<div style="font-size: 1.15rem;">{str(row.get("answer", row.get("Answer", "")))}</div>', unsafe_allow_html=True)
         st.markdown('<div class="mini-tag tag-purple-exp">解説</div>', unsafe_allow_html=True)
-        st.markdown(str(row.get("explanation", row.get("Explanation", ""))))
+        st.markdown(f'<div style="font-size: 1.15rem;">{str(row.get("explanation", row.get("Explanation", "")))}</div>', unsafe_allow_html=True)
         if st.button("✅ 次へ"): st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
 
 # --- システム英単語 ---
@@ -244,7 +244,7 @@ elif subject in ["化学（一問一答）", "生物（一問一答）"]:
     t_exp = "tag-green-exp" if subject == "化学（一問一答）" else "tag-pink-exp"
     
     st.markdown(f'<div class="card {card_c}">【{row.get("chapter", row.get("Chapter", ""))}】</div>', unsafe_allow_html=True)
-    st.markdown(str(row.get("question", row.get("Question", ""))))
+    st.markdown(f'<div style="font-size: 1.15rem;">{str(row.get("question", row.get("Question", "")))}</div>', unsafe_allow_html=True)
 
     if subject == "化学（一問一答）":
         st.markdown('<div class="warning-box">⚠️主に知識を整理するために用意しました。計算分野は手を動かして問題集を解きましょう。</div>', unsafe_allow_html=True)
@@ -255,7 +255,7 @@ elif subject in ["化学（一問一答）", "生物（一問一答）"]:
         if st.button("答えを確認する"): st.session_state.answered = True; st.rerun()
     else:
         st.markdown(f'<div class="mini-tag {t_ans}">正解</div>', unsafe_allow_html=True)
-        st.markdown(str(row.get("answer", row.get("Answer", ""))))
+        st.markdown(f'<div style="font-size: 1.15rem;">{str(row.get("answer", row.get("Answer", "")))}</div>', unsafe_allow_html=True)
         st.markdown(f'<div class="mini-tag {t_exp}">解説</div>', unsafe_allow_html=True)
-        st.markdown(str(row.get("explanation", row.get("Explanation", ""))))
+        st.markdown(f'<div style="font-size: 1.15rem;">{str(row.get("explanation", row.get("Explanation", "")))}</div>', unsafe_allow_html=True)
         if st.button("✅ 次へ"): st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
