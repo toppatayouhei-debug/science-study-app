@@ -69,6 +69,9 @@ st.markdown("""
 .tag-pink-ans { background-color: #e91e63; color: white; }
 .tag-pink-exp { background-color: #fce4ec; color: #880e4f; border: 1px solid #e91e63; }
 
+/* 英文法解説用カード */
+.exp-card { background: #fff9db; padding: 18px; border-radius: 14px; border: 1px dashed #fab005; margin-top: 10px; font-size: 0.95rem; color: #333; }
+
 .description-box { background-color: #ffffff; padding: 20px; border-radius: 12px; border: 1px solid #e5e7eb; margin-bottom: 25px; line-height: 1.6; }
 .stButton button { width: 100%; border-radius: 16px; font-size: 1.1rem; font-weight: 800; min-height: 55px; }
 </style>
@@ -101,6 +104,7 @@ def load_csv(subject):
         "数学Ⅲ（定石定着）": "math3.csv",
         "システム英単語": "final_tango_list.csv",
         "暗唱例文集": "english_sent.csv",
+        "頻出！英文法入試問題": "grammar.csv",
         "化学（一問一答）": "chemistry.csv",
         "地理（一問一答）": "geography.csv",
         "生物（一問一答）": "biology.csv"
@@ -117,7 +121,7 @@ def load_csv(subject):
 st.markdown('<div class="main-title">🧪 🔢 🧬 理系の暗記モノ 完全攻略</div>', unsafe_allow_html=True)
 st.sidebar.title("🧬 学習メニュー")
 
-subject = st.sidebar.selectbox("科目を選択", ["選択してください", "数学Ⅲ（定石定着）", "システム英単語", "暗唱例文集", "化学（一問一答）", "地理（一問一答）", "生物（一問一答）"])
+subject = st.sidebar.selectbox("科目を選択", ["選択してください", "数学Ⅲ（定石定着）", "システム英単語", "暗唱例文集", "頻出！英文法入試問題", "化学（一問一答）", "地理（一問一答）", "生物（一問一答）"])
 
 if subject == "選択してください":
     st.markdown('<div class="description-box"><b>【学習の進め方】</b><br>1. サイドバーから科目を選択。<br>2. 範囲を絞り込んで学習開始。</div>', unsafe_allow_html=True)
@@ -128,7 +132,19 @@ if raw_df.empty:
     st.sidebar.error(f"⚠️ {subject} のファイルが見つかりません。")
     st.stop()
 
-if "chapter" in raw_df.columns or "Chapter" in raw_df.columns:
+if subject == "頻出！英文法入試問題":
+    fields_set = set()
+    if "field" in raw_df.columns:
+        for f_val in raw_df["field"].dropna():
+            for sub_f in str(f_val).split("/"):
+                if sub_f.strip():
+                    fields_set.add(sub_f.strip())
+    sorted_fields = sorted(list(fields_set))
+    grammar_options = ["ランダム（全問シャッフル）"] + sorted_fields
+    sel_field = st.sidebar.radio("分野を選択", grammar_options)
+    current_filter = sel_field
+    df = raw_df if sel_field == "ランダム（全問シャッフル）" else raw_df[raw_df["field"].astype(str).apply(lambda x: sel_field in [s.strip() for s in x.split("/")])]
+elif "chapter" in raw_df.columns or "Chapter" in raw_df.columns:
     c_col = "chapter" if "chapter" in raw_df.columns else "Chapter"
     chaps = raw_df[c_col].dropna().unique().tolist()
     sel_chap = st.sidebar.radio("範囲を選択", ["すべて表示"] + chaps)
@@ -236,6 +252,46 @@ elif subject == "暗唱例文集":
         st.markdown(f'<div style="margin-bottom:15px; padding-left:5px;">{ans_highlight}</div>', unsafe_allow_html=True)
         play_voice(str(row["English"]).replace("**", ""))
         if st.button("✅ 次へ"): st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
+
+# --- 頻出！英文法入試問題 ---
+elif subject == "頻出！英文法入試問題":
+    # 3つの指定注意書きを1つの黄色の枠（st.info）にまとめ、文字が左に綺麗に揃うよう配置
+    st.info(
+        "⚠️ 目標は７割。そのために必要な知識量を演習で知りましょう\n\n"
+        "⚠️ 「理屈で解く問題」と「知識で解く」問題を区別しましょう\n\n"
+        "⚠️ 問題を、解いて解いて解きまくる。ニガテ意識よさようなら"
+    )
+    
+    uni_suffix = f" （{row['university']}）" if "university" in row and pd.notna(row["university"]) and str(row["university"]).strip() else ""
+    full_question = f"{row.get('question', '')}{uni_suffix}"
+    
+    # 選択肢情報をカード内部にパーツとして結合
+    options_text = ""
+    if "option" in row and pd.notna(row["option"]) and str(row["option"]).strip():
+        choice_list = [x.strip() for x in str(row["option"]).split("/") if x.strip()]
+        if choice_list:
+            options_text = "<hr>【選択肢】<br>" + " ｜ ".join([f"<b>[{i+1}]</b> {val}" for i, val in enumerate(choice_list)])
+            
+    st.markdown(f'<div class="card orange-card"><b>{full_question}</b>{options_text}</div>', unsafe_allow_html=True)
+    
+    # 暗唱例文集と同じ「答えを確認する」一発チェック形式
+    if not st.session_state.answered:
+        if st.button("答えを確認する"): 
+            st.session_state.answered = True
+            st.rerun()
+    else:
+        st.success(f"【正解】\n{row.get('answer', '')}")
+        st.markdown(f'<div class="exp-card">【解説】<br>{row.get("explanation", "")}</div>', unsafe_allow_html=True)
+        
+        # 音声再生
+        voice_sentence = str(row.get("question", "")).replace("(      )", str(row.get("answer", "")))
+        play_voice(voice_sentence, "英文を聴く")
+        
+        st.write("---")
+        if st.button("✅ 次へ"): 
+            st.session_state.idx += 1
+            st.session_state.answered = False
+            st.rerun()
 
 # --- その他（化学・生物） ---
 elif subject in ["化学（一問一答）", "生物（一問一答）"]:
