@@ -92,7 +92,7 @@ def play_voice(text, label="音声を聴く"):
     except: pass
 
 def reset_engine():
-    for k in ["df", "idx", "answered", "choices", "correct", "quiz_filter", "quiz_subject"]:
+    for k in ["df", "idx", "answered", "choices", "correct", "quiz_filter", "quiz_subject", "selected", "study_mode"]:
         if k in st.session_state: del st.session_state[k]
 
 # ==================================================
@@ -125,11 +125,27 @@ subject = st.sidebar.selectbox("科目を選択", ["選択してください", "
 
 if subject == "選択してください":
     st.markdown('<div class="description-box"><b>【学習の進め方】</b><br>1. サイドバーから科目を選択。<br>2. 範囲を絞り込んで学習開始。</div>', unsafe_allow_html=True)
+    
+    # 未選択時でもサイドバー最下部にキャッシュクリアボタンを表示
+    st.sidebar.markdown("---")
+    if st.sidebar.button("🔄 アプリのキャッシュをクリア", key="clear_cache_init"):
+        st.cache_data.clear()
+        reset_engine()
+        st.rerun()
+        
     st.stop()
 
 raw_df = load_csv(subject)
 if raw_df.empty:
     st.sidebar.error(f"⚠️ {subject} のファイルが見つかりません。")
+    
+    # エラー時でもキャッシュクリアできるように配置
+    st.sidebar.markdown("---")
+    if st.sidebar.button("🔄 アプリのキャッシュをクリア", key="clear_cache_err"):
+        st.cache_data.clear()
+        reset_engine()
+        st.rerun()
+        
     st.stop()
 
 if subject == "頻出！英文法入試問題":
@@ -158,6 +174,13 @@ elif subject == "システム英単語":
 else:
     df = raw_df
     current_filter = "All"
+
+# サイドバー設定の最後（各種メニューの下）にキャッシュクリアボタンを設置
+st.sidebar.markdown("---")
+if st.sidebar.button("🔄 アプリのキャッシュをクリア", key="clear_cache_main"):
+    st.cache_data.clear()
+    reset_engine()
+    st.rerun()
 
 if st.session_state.get("quiz_subject") != subject or st.session_state.get("quiz_filter") != current_filter:
     reset_engine()
