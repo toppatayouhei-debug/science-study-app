@@ -260,21 +260,33 @@ elif subject == "システム英単語":
 # --- 暗唱例文集 ---
 elif subject == "暗唱例文集":
     if "study_mode" not in st.session_state: st.session_state.study_mode = "全文暗唱"
-    c_m1, c_m2 = st.columns(2)
-    if c_m1.button("🔴 全文暗唱"): st.session_state.study_mode = "全文暗唱"; st.rerun()
-    if c_m2.button("🔵 ヒントはこちら"): st.session_state.study_mode = "空欄補充"; st.rerun()
     
-    disp = re.sub(r'\*\*(.*?)\*\*', "[ ____ ]", str(row["English"])) if st.session_state.study_mode == "空欄補充" else "（英文を思い出してください）"
+    c_m1, c_m2 = st.columns(2)
+    with c_m1:
+        if st.button("🔴 全文暗唱"): st.session_state.study_mode = "全文暗唱"; st.rerun()
+    with c_m2:
+        if st.button("🔵 ヒントはここ"): st.session_state.study_mode = "空欄補充"; st.rerun()
+        
+    if st.session_state.study_mode == "空欄補充": 
+        st.info("💡 [　　]の中は１語とは限りません")
+        
+    # 大文字・小文字の表記揺れに対応
+    eng_text = str(row.get("english", row.get("English", "")))
+    
+    disp = re.sub(r'\*\*(.*?)\*\*', "[ ____ ]", eng_text) if st.session_state.study_mode == "空欄補充" else "（英文を思い出してください）"
     st.markdown(f'<div class="card orange-card">【日本語】<br><b>{row["japanese"]}</b><hr>【英文】<br>{disp}</div>', unsafe_allow_html=True)
 
     if not st.session_state.answered:
         if st.button("答えを確認する"): st.session_state.answered = True; st.rerun()
     else:
-        st.markdown('<div class="mini-tag english-ans-tag" style="background:#fff9db; color:#fab005; border:1px solid #fab005;">正解</div>', unsafe_allow_html=True)
-        ans_highlight = re.sub(r'\*\*(.*?)\*\*', r'<span class="highlight">\1</span>', str(row["English"]))
-        st.markdown(f'<div style="margin-bottom:15px; padding-left:5px;">{ans_highlight}</div>', unsafe_allow_html=True)
-        play_voice(str(row["English"]).replace("**", ""))
-        if st.button("✅ 次へ"): st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
+        ans_highlight = re.sub(r'\*\*(.*?)\*\*', r'<span style="color:#e91e63; font-weight:800; border-bottom:2px solid;">\1</span>', eng_text)
+        st.markdown(f'<div class="exp-card">【正解】<br><span style="font-size:1.3rem; font-family:serif;">{ans_highlight}</span></div>', unsafe_allow_html=True)
+        play_voice(eng_text.replace("**", ""), "音声を聴く")
+        
+        st.write("---")
+        c1, c2 = st.columns(2)
+        if c1.button("✅ 次へ"): st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
+        if c2.button("🔄 もう一度"): st.session_state.answered = False; st.rerun()
 
 # --- 頻出！英文法入試問題 ---
 elif subject == "頻出！英文法入試問題":
