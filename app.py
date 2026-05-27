@@ -160,17 +160,40 @@ if subject == "頻出！英文法入試問題":
     sel_field = st.sidebar.radio("分野を選択", grammar_options)
     current_filter = sel_field
     df = raw_df if sel_field == "ランダム（全問シャッフル）" else raw_df[raw_df["field"].astype(str).apply(lambda x: sel_field in [s.strip() for s in x.split("/")])]
+
+elif subject == "システム英単語":
+    # データの並び順をベースに安全に1からの連番を作成
+    if "word_no" not in raw_df.columns:
+        raw_df["word_no"] = range(1, len(raw_df) + 1)
+        
+    total_words = len(raw_df)
+    
+    # 100個刻みの選択肢を動的に自動生成
+    tango_options = ["すべてを表示"]
+    for start in range(1, total_words + 1, 100):
+        end = min(start + 99, total_words)
+        tango_options.append(f"{start} - {end}")
+        
+    sel_range = st.sidebar.radio("単語範囲（100個刻み）", tango_options)
+    current_filter = sel_range
+    
+    if sel_range == "すべてを表示":
+        df = raw_df
+    else:
+        # 選択された文字列から開始番号と終了番号を抽出してフィルタリング
+        bounds = [int(s) for s in re.findall(r'\d+', sel_range)]
+        if len(bounds) == 2:
+            df = raw_df[(raw_df["word_no"] >= bounds[0]) & (raw_df["word_no"] <= bounds[1])]
+        else:
+            df = raw_df
+
 elif "chapter" in raw_df.columns or "Chapter" in raw_df.columns:
     c_col = "chapter" if "chapter" in raw_df.columns else "Chapter"
     chaps = raw_df[c_col].dropna().unique().tolist()
     sel_chap = st.sidebar.radio("範囲を選択", ["すべて表示"] + chaps)
     df = raw_df if sel_chap == "すべて表示" else raw_df[raw_df[c_col].astype(str).str.strip() == sel_chap]
     current_filter = sel_chap
-elif subject == "システム英単語":
-    lv_map = {"すべて":"All", "Fundamental(1-600)":"Fundamental", "Essential(601-1200)":"Essential", "Advanced(1201-1700)":"Advanced", "Final(1701-2027)":"Final"}
-    sel_lv = st.sidebar.radio("レベル選択", list(lv_map.keys()))
-    df = raw_df if lv_map[sel_lv] == "All" else raw_df[raw_df["level"].astype(str).str.contains(lv_map[sel_lv], na=False)]
-    current_filter = sel_lv
+
 else:
     df = raw_df
     current_filter = "All"
@@ -286,11 +309,10 @@ elif subject == "暗唱例文集":
         st.write("---")
         c1, c2 = st.columns(2)
         if c1.button("✅ 次へ"): st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
-        if c2.button("🔄 もう一度"): st.session_state.answered = False; st.rerun()
+        if c2.button("🔄 もう一度"): st.session_state.answered = False; r.rerun()
 
 # --- 頻出！英文法入試問題 ---
 elif subject == "頻出！英文法入試問題":
-    # 指定の注意書きを1つの黄色の枠（st.info）にまとめ、文字が左に綺麗に揃うよう配置
     st.info(
         "⚠️ 文法の得点目標は７割。そのために何が必要かを理解する。\n\n"
         "⚠️ 論理とパターン。これが文法を攻略するためのカギになる。\n\n"
@@ -300,7 +322,6 @@ elif subject == "頻出！英文法入試問題":
     uni_suffix = f" （{row['university']}）" if "university" in row and pd.notna(row["university"]) and str(row["university"]).strip() else ""
     full_question = f"{row.get('question', '')}{uni_suffix}"
     
-    # 選択肢情報をカード内部にパーツとして結合
     options_text = ""
     if "option" in row and pd.notna(row["option"]) and str(row["option"]).strip():
         choice_list = [x.strip() for x in str(row["option"]).split("/") if x.strip()]
@@ -309,7 +330,6 @@ elif subject == "頻出！英文法入試問題":
             
     st.markdown(f'<div class="card orange-card"><b>{full_question}</b>{options_text}</div>', unsafe_allow_html=True)
     
-    # 暗唱例文集と同じ「答えを確認する」一発チェック形式
     if not st.session_state.answered:
         if st.button("答えを確認する"): 
             st.session_state.answered = True
@@ -318,7 +338,6 @@ elif subject == "頻出！英文法入試問題":
         st.success(f"【正解】\n{row.get('answer', '')}")
         st.markdown(f'<div class="exp-card">【解説】<br>{row.get("explanation", "")}</div>', unsafe_allow_html=True)
         
-        # 音声再生
         voice_sentence = str(row.get("question", "")).replace("(      )", str(row.get("answer", "")))
         play_voice(voice_sentence, "英文を聴く")
         
