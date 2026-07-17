@@ -83,12 +83,13 @@ div[data-testid="stHorizontalBlock"] .stButton button {
     font-size: 2rem !important; /* 絵文字をさらに大きく表示 */
     color: #e91e63 !important; /* 赤（ピンク寄りの鮮やかな赤） */
     border: 2px solid #e91e63 !important;
-    background-color: #fff5f7 !important;
+    background-color: #fffdeb !important; /* 👈 ここをクリーム色に変更しました */
     transition: all 0.3s ease;
 }
 div[data-testid="stHorizontalBlock"] .stButton button:hover {
-    background-color: #e91e63 !important;
-    color: white !important;
+    background-color: #fef08a !important; /* 👈 ホバー時も少し濃いクリーム色になります */
+    color: #e91e63 !important;
+    border: 2px solid #e91e63 !important;
 }
 </style>
 """, unsafe_allow_html=True)
