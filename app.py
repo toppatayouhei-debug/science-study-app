@@ -136,7 +136,8 @@ def load_csv(subject):
         "地理（一問一答）": "geography.csv",
         "生物（一問一答）": "biology.csv",
         "理系生物 共通テスト対策": "sbio_seigo.csv",
-        "理系化学 共通テスト対策": "schem_seigo.csv"
+        "理系化学 共通テスト対策": "schem_seigo.csv",
+        "地理 共通テスト対策": "chiri_seigo.csv"  # 👈 新規追加
     }
     try:
         df = pd.read_csv(files[subject], encoding="utf-8-sig").dropna(how='all')
@@ -153,7 +154,8 @@ st.sidebar.title("🧬 学習メニュー")
 subject = st.sidebar.selectbox("科目を選択", [
     "選択してください", "数学Ⅲ（定石定着）", "システム英単語", "暗唱例文集", 
     "頻出！英文法入試問題", "化学（一問一答）", "地理（一問一答）", 
-    "生物（一問一答）", "理系生物 共通テスト対策", "理系化学 共通テスト対策"
+    "生物（一問一答）", "理系生物 共通テスト対策", "理系化学 共通テスト対策",
+    "地理 共通テスト対策"  # 👈 新規追加
 ])
 
 if subject == "選択してください":
@@ -255,7 +257,7 @@ st.progress((idx + 1) / len(active_df))
 if subject == "数学Ⅲ（定石定着）":
     st.markdown(f'<div class="card blue-card">【{row.get("chapter", "設定なし")}】</div>', unsafe_allow_html=True)
     st.write(row.get("question", "")) 
-    st.markdown('<div class="warning-box">⚠️見た瞬間に解答の方針が浮かんでほしい問題を並べました。ここで解法を身につけて、必ず演習で手を動かして計算すること。計算力は大事です。</div>', unsafe_allow_html=True)
+    st.markdown('<div class="warning-box">⚠️見た瞬間に解答の方針が浮かんでほしい問題を並ぜました。ここで解法を身につけて、必ず演習で手を動かして計算すること。計算力は大事です。</div>', unsafe_allow_html=True)
 
     if not st.session_state.answered:
         if st.button("答え・方針を確認する"): st.session_state.answered = True; st.rerun()
@@ -452,7 +454,6 @@ elif subject == "理系化学 共通テスト対策":
     
     # 化学式の自動フォーマットを適用
     q_txt = format_chemical_formula(str(row.get("question", row.get("Question", ""))))
-    # 👈 unsafe_allow_html=True を適用して、カードの中でHTML（sub/sup）が正しく描画されるようにしました
     st.markdown(f'<div class="card orange-card">{q_txt}</div>', unsafe_allow_html=True)
 
     if "selected" not in st.session_state:
@@ -485,6 +486,46 @@ elif subject == "理系化学 共通テスト対策":
         
         st.markdown('<div class="mini-tag tag-green-exp">解説</div>', unsafe_allow_html=True)
         st.markdown(exp_txt, unsafe_allow_html=True)
+        
+        if st.button("✅ 次へ"): 
+            st.session_state.idx += 1
+            st.session_state.answered = False
+            st.session_state.selected = None
+            st.rerun()
+
+# --- 地理 共通テスト対策 （新規追加） ---
+elif subject == "地理 共通テスト対策":
+    st.markdown('<div class="warning-box">⚠️共通テストの正誤判定の選択肢から、図表なしで判断可能な選択肢を集めた〇✕問題です。</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="card purple-card">【{row.get("chapter", row.get("Chapter", ""))}】</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="card purple-card">{row.get("question", row.get("Question", ""))}</div>', unsafe_allow_html=True)
+
+    if "selected" not in st.session_state:
+        st.session_state.selected = None
+
+    if not st.session_state.answered:
+        col_o, col_x = st.columns(2)
+        if col_o.button("⭕", key="btn_maru_chiri"):
+            st.session_state.selected = "〇"
+            st.session_state.answered = True
+            st.rerun()
+        if col_x.button("❌", key="btn_batsu_chiri"):
+            st.session_state.selected = "×"
+            st.session_state.answered = True
+            st.rerun()
+    else:
+        ans_val = str(row.get("answer", row.get("Answer", ""))).strip()
+        user_choice = st.session_state.selected
+        
+        if user_choice == ans_val:
+            st.success(f"🎉 正解！ あなたの選択: {user_choice}")
+        else:
+            st.error(f"❌ 不正解... あなたの選択: {user_choice} (正解: {ans_val})")
+            
+        st.markdown('<div class="mini-tag tag-purple-ans">正解</div>', unsafe_allow_html=True)
+        st.markdown(f"### {ans_val}")
+        
+        st.markdown('<div class="mini-tag tag-purple-exp">解説</div>', unsafe_allow_html=True)
+        st.markdown(str(row.get("explanation", row.get("Explanation", ""))))
         
         if st.button("✅ 次へ"): 
             st.session_state.idx += 1
