@@ -41,6 +41,7 @@ st.markdown("""
 .blue-card   { border-left: 8px solid #2196f3; } /* 数学用 */
 .purple-card { border-left: 8px solid #9c27b0; } /* 地理用 */
 .pink-card   { border-left: 8px solid #e91e63; } /* 生物用 */
+.teal-card   { border-left: 8px solid #009688; } /* 理系生物 共通テスト対策用 */
 
 .highlight { color: #ff9800 !important; font-weight: bold !important; }
 
@@ -68,6 +69,8 @@ st.markdown("""
 .tag-green-exp { background-color: #f1f8e9; color: #2e7d32; border: 1px solid #4caf50; }
 .tag-pink-ans { background-color: #e91e63; color: white; }
 .tag-pink-exp { background-color: #fce4ec; color: #880e4f; border: 1px solid #e91e63; }
+.tag-teal-ans { background-color: #009688; color: white; }
+.tag-teal-exp { background-color: #e0f2f1; color: #004d40; border: 1px solid #009688; }
 
 /* 英文法解説用カード */
 .exp-card { background: #fff9db; padding: 18px; border-radius: 14px; border: 1px dashed #fab005; margin-top: 10px; font-size: 0.95rem; color: #333; }
@@ -107,7 +110,8 @@ def load_csv(subject):
         "頻出！英文法入試問題": "grammar.csv",
         "化学（一問一答）": "chemistry.csv",
         "地理（一問一答）": "geography.csv",
-        "生物（一問一答）": "biology.csv"
+        "生物（一問一答）": "biology.csv",
+        "理系生物 共通テスト対策": "sbio_seigo.csv"
     }
     try:
         df = pd.read_csv(files[subject], encoding="utf-8-sig").dropna(how='all')
@@ -121,7 +125,7 @@ def load_csv(subject):
 st.markdown('<div class="main-title">🧪 🔢 🧬 理系の暗記モノ 完全攻略</div>', unsafe_allow_html=True)
 st.sidebar.title("🧬 学習メニュー")
 
-subject = st.sidebar.selectbox("科目を選択", ["選択してください", "数学Ⅲ（定石定着）", "システム英単語", "暗唱例文集", "頻出！英文法入試問題", "化学（一問一答）", "地理（一問一答）", "生物（一問一答）"])
+subject = st.sidebar.selectbox("科目を選択", ["選択してください", "数学Ⅲ（定石定着）", "システム英単語", "暗唱例文集", "頻出！英文法入試問題", "化学（一問一答）", "地理（一問一答）", "生物（一問一答）", "理系生物 共通テスト対策"])
 
 if subject == "選択してください":
     st.markdown('<div class="description-box"><b>【学習の進め方】</b><br>1. サイドバーから科目を選択。<br>2. 範囲を絞り込んで学習開始。</div>', unsafe_allow_html=True)
@@ -291,7 +295,7 @@ elif subject == "暗唱例文集":
         if st.button("🔵 ヒントはここ"): st.session_state.study_mode = "空欄補充"; st.rerun()
         
     if st.session_state.study_mode == "空欄補充": 
-        st.info("💡 [　　]の中は１語とは限りません")
+        st.info("💡 [  ]の中は１語とは限りません")
         
     # 大文字・小文字の表記揺れに対応
     eng_text = str(row.get("english", row.get("English", "")))
@@ -309,7 +313,7 @@ elif subject == "暗唱例文集":
         st.write("---")
         c1, c2 = st.columns(2)
         if c1.button("✅ 次へ"): st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
-        if c2.button("🔄 もう一度"): st.session_state.answered = False; r.rerun()
+        if c2.button("🔄 もう一度"): st.session_state.answered = False; st.rerun()
 
 # --- 頻出！英文法入試問題 ---
 elif subject == "頻出！英文法入試問題":
@@ -369,3 +373,23 @@ elif subject in ["化学（一問一答）", "生物（一問一答）"]:
         st.markdown(f'<div class="mini-tag {t_exp}">解説</div>', unsafe_allow_html=True)
         st.markdown(str(row.get("explanation", row.get("Explanation", ""))))
         if st.button("✅ 次へ"): st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
+
+# --- 理系生物 共通テスト対策 ---
+elif subject == "理系生物 共通テスト対策":
+    st.markdown(f'<div class="card teal-card">【{row.get("chapter", row.get("Chapter", ""))}】</div>', unsafe_allow_html=True)
+    st.markdown(str(row.get("question", row.get("Question", ""))))
+
+    if not st.session_state.answered:
+        if st.button("答えを確認する"): 
+            st.session_state.answered = True
+            st.rerun()
+    else:
+        st.markdown('<div class="warning-box">⚠️共通テストの選択肢をバラバラにした〇✕問題です</div>', unsafe_allow_html=True)
+        st.markdown('<div class="mini-tag tag-teal-ans">正解</div>', unsafe_allow_html=True)
+        st.markdown(str(row.get("answer", row.get("Answer", ""))))
+        st.markdown('<div class="mini-tag tag-teal-exp">解説</div>', unsafe_allow_html=True)
+        st.markdown(str(row.get("explanation", row.get("Explanation", ""))))
+        if st.button("✅ 次へ"): 
+            st.session_state.idx += 1
+            st.session_state.answered = False
+            st.rerun()
