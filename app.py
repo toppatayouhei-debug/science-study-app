@@ -124,7 +124,8 @@ def load_csv(subject):
         "化学（一問一答）": "chemistry.csv",
         "地理（一問一答）": "geography.csv",
         "生物（一問一答）": "biology.csv",
-        "理系生物 共通テスト対策": "sbio_seigo.csv"
+        "理系生物 共通テスト対策": "sbio_seigo.csv",
+        "理系化学 共通テスト対策": "schem_seigo.csv"  # 新規追加
     }
     try:
         df = pd.read_csv(files[subject], encoding="utf-8-sig").dropna(how='all')
@@ -138,7 +139,11 @@ def load_csv(subject):
 st.markdown('<div class="main-title">🧪 🔢 🧬 理系の暗記モノ 完全攻略</div>', unsafe_allow_html=True)
 st.sidebar.title("🧬 学習メニュー")
 
-subject = st.sidebar.selectbox("科目を選択", ["選択してください", "数学Ⅲ（定石定着）", "システム英単語", "暗唱例文集", "頻出！英文法入試問題", "化学（一問一答）", "地理（一問一答）", "生物（一問一答）", "理系生物 共通テスト対策"])
+subject = st.sidebar.selectbox("科目を選択", [
+    "選択してください", "数学Ⅲ（定石定着）", "システム英単語", "暗唱例文集", 
+    "頻出！英文法入試問題", "化学（一問一答）", "地理（一問一答）", 
+    "生物（一問一答）", "理系生物 共通テスト対策", "理系化学 共通テスト対策"  # 新規追加
+])
 
 if subject == "選択してください":
     st.markdown('<div class="description-box"><b>【学習の進め方】</b><br>1. サイドバーから科目を選択。<br>2. 範囲を絞り込んで学習開始。</div>', unsafe_allow_html=True)
@@ -424,6 +429,51 @@ elif subject == "理系生物 共通テスト対策":
         st.markdown(f"### {ans_val}")
         
         st.markdown('<div class="mini-tag tag-teal-exp">解説</div>', unsafe_allow_html=True)
+        st.markdown(str(row.get("explanation", row.get("Explanation", ""))))
+        
+        if st.button("✅ 次へ"): 
+            st.session_state.idx += 1
+            st.session_state.answered = False
+            st.session_state.selected = None
+            st.rerun()
+
+# --- 理系化学 共通テスト対策 (新規追加) ---
+elif subject == "理系化学 共通テスト対策":
+    # 1. 注意書きを表示
+    st.markdown('<div class="warning-box">⚠️共通テストの選択肢をバラバラにした〇✕問題です</div>', unsafe_allow_html=True)
+    
+    # 2. 余計なタイトルは全削除し、オレンジ色の枠で question のみを入れる
+    st.markdown(f'<div class="card orange-card">{row.get("question", row.get("Question", ""))}</div>', unsafe_allow_html=True)
+
+    if "selected" not in st.session_state:
+        st.session_state.selected = None
+
+    if not st.session_state.answered:
+        # 3. シンプルな「⭕」と「❌」のボタンを横並びで表示
+        col_o, col_x = st.columns(2)
+        if col_o.button("⭕", key="btn_maru_chem"):
+            st.session_state.selected = "〇"
+            st.session_state.answered = True
+            st.rerun()
+        if col_x.button("❌", key="btn_batsu_chem"):
+            st.session_state.selected = "×"
+            st.session_state.answered = True
+            st.rerun()
+    else:
+        # 解答・解説の表示
+        ans_val = str(row.get("answer", row.get("Answer", ""))).strip()
+        user_choice = st.session_state.selected
+        
+        # ユーザーの選んだボタンと正解を判定して結果を表示
+        if user_choice == ans_val:
+            st.success(f"🎉 正解！ あなたの選択: {user_choice}")
+        else:
+            st.error(f"❌ 不正解... あなたの選択: {user_choice} (正解: {ans_val})")
+            
+        st.markdown('<div class="mini-tag tag-green-ans">正解</div>', unsafe_allow_html=True)
+        st.markdown(f"### {ans_val}")
+        
+        st.markdown('<div class="mini-tag tag-green-exp">解説</div>', unsafe_allow_html=True)
         st.markdown(str(row.get("explanation", row.get("Explanation", ""))))
         
         if st.button("✅ 次へ"): 
