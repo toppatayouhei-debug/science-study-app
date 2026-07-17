@@ -80,7 +80,7 @@ st.markdown("""
 
 /* 〇✕用の巨大で見やすい赤色特別ボタン装飾 */
 div[data-testid="stHorizontalBlock"] .stButton button {
-    font-size: 1.4rem !important;
+    font-size: 2rem !important; /* 絵文字をさらに大きく表示 */
     color: #e91e63 !important; /* 赤（ピンク寄りの鮮やかな赤） */
     border: 2px solid #e91e63 !important;
     background-color: #fff5f7 !important;
@@ -389,7 +389,7 @@ elif subject in ["化学（一問一答）", "生物（一問一答）"]:
 
 # --- 理系生物 共通テスト対策 ---
 elif subject == "理系生物 共通テスト対策":
-    # 1. 注意書きを問題提示と同じ画面（最初から）に表示
+    # 1. 注意書きを表示
     st.markdown('<div class="warning-box">⚠️共通テストの選択肢をバラバラにした〇✕問題です</div>', unsafe_allow_html=True)
     
     # 2. 余計なタイトル（Chapterや通し番号など）は全削除し、純粋にquestionのみを枠内に入れる
@@ -399,13 +399,13 @@ elif subject == "理系生物 共通テスト対策":
         st.session_state.selected = None
 
     if not st.session_state.answered:
-        # 3. 指定の「赤の○（正しい）」「赤の×（誤り）」ボタンを横並びで表示
+        # 3. シンプルな「⭕」と「❌」のボタンを横並びで表示
         col_o, col_x = st.columns(2)
-        if col_o.button("赤の○（正しい）", key="btn_maru"):
+        if col_o.button("⭕", key="btn_maru"):
             st.session_state.selected = "〇"
             st.session_state.answered = True
             st.rerun()
-        if col_x.button("赤の×（誤り）", key="btn_batsu"):
+        if col_x.button("❌", key="btn_batsu"):
             st.session_state.selected = "×"
             st.session_state.answered = True
             st.rerun()
