@@ -78,16 +78,16 @@ st.markdown("""
 .description-box { background-color: #ffffff; padding: 20px; border-radius: 12px; border: 1px solid #e5e7eb; margin-bottom: 25px; line-height: 1.6; }
 .stButton button { width: 100%; border-radius: 16px; font-size: 1.1rem; font-weight: 800; min-height: 55px; }
 
-/* 〇✕用の巨大で見やすい赤色特別ボタン装飾 */
+/* 〇✕用の巨大で見やすい赤色特別ボタン装飾（背景色をクリーム色にカスタム） */
 div[data-testid="stHorizontalBlock"] .stButton button {
     font-size: 2rem !important; /* 絵文字をさらに大きく表示 */
     color: #e91e63 !important; /* 赤（ピンク寄りの鮮やかな赤） */
     border: 2px solid #e91e63 !important;
-    background-color: #fffdeb !important; /* 👈 ここをクリーム色に変更しました */
+    background-color: #fffdeb !important; /* 優しいクリーム色 */
     transition: all 0.3s ease;
 }
 div[data-testid="stHorizontalBlock"] .stButton button:hover {
-    background-color: #fef08a !important; /* 👈 ホバー時も少し濃いクリーム色になります */
+    background-color: #fef08a !important; /* ホバー時（少し濃いクリーム色） */
     color: #e91e63 !important;
     border: 2px solid #e91e63 !important;
 }
@@ -112,6 +112,17 @@ def reset_engine():
     for k in ["df", "idx", "answered", "choices", "correct", "quiz_filter", "quiz_subject", "selected", "study_mode"]:
         if k in st.session_state: del st.session_state[k]
 
+def format_chemical_formula(text):
+    """テキスト内の一般的な化学式（例: H2O, CO2, C6H12O6）の数字を下付き文字にする"""
+    if not isinstance(text, str):
+        return text
+    # アルファベットの直後にある数字を下付きタグ <sub> で囲むリプレイス処理
+    # 例: H2O -> H<sub>2</sub>O, SO42- などの簡易対応
+    formatted = re.sub(r'([A-Za-z\)])(\d+)', r'\1<sub>\2</sub>', text)
+    # イオン価数表現表現用（2+, 3+, 2-, - などが後ろにある場合の簡易処理）
+    formatted = re.sub(r'(\d+[\+\-])', r'<sup>\1</sup>', formatted)
+    return formatted
+
 # ==================================================
 # 4. データ読み込み
 # ==================================================
@@ -126,7 +137,7 @@ def load_csv(subject):
         "地理（一問一答）": "geography.csv",
         "生物（一問一答）": "biology.csv",
         "理系生物 共通テスト対策": "sbio_seigo.csv",
-        "理系化学 共通テスト対策": "schem_seigo.csv"  # 新規追加
+        "理系化学 共通テスト対策": "schem_seigo.csv"
     }
     try:
         df = pd.read_csv(files[subject], encoding="utf-8-sig").dropna(how='all')
@@ -143,13 +154,12 @@ st.sidebar.title("🧬 学習メニュー")
 subject = st.sidebar.selectbox("科目を選択", [
     "選択してください", "数学Ⅲ（定石定着）", "システム英単語", "暗唱例文集", 
     "頻出！英文法入試問題", "化学（一問一答）", "地理（一問一答）", 
-    "生物（一問一答）", "理系生物 共通テスト対策", "理系化学 共通テスト対策"  # 新規追加
+    "生物（一問一答）", "理系生物 共通テスト対策", "理系化学 共通テスト対策"
 ])
 
 if subject == "選択してください":
     st.markdown('<div class="description-box"><b>【学習の進め方】</b><br>1. サイドバーから科目を選択。<br>2. 範囲を絞り込んで学習開始。</div>', unsafe_allow_html=True)
     
-    # 未選択時でもサイドバー最下部にキャッシュクリアボタンを表示
     st.sidebar.markdown("---")
     if st.sidebar.button("🔄 アプリのキャッシュをクリア", key="clear_cache_init"):
         st.cache_data.clear()
@@ -162,7 +172,6 @@ raw_df = load_csv(subject)
 if raw_df.empty:
     st.sidebar.error(f"⚠️ {subject} のファイルが見つかりません。")
     
-    # エラー時でもキャッシュクリアできるように配置
     st.sidebar.markdown("---")
     if st.sidebar.button("🔄 アプリのキャッシュをクリア", key="clear_cache_err"):
         st.cache_data.clear()
@@ -185,13 +194,11 @@ if subject == "頻出！英文法入試問題":
     df = raw_df if sel_field == "ランダム（全問シャッフル）" else raw_df[raw_df["field"].astype(str).apply(lambda x: sel_field in [s.strip() for s in x.split("/")])]
 
 elif subject == "システム英単語":
-    # データの並び順をベースに安全に1からの連番を作成
     if "word_no" not in raw_df.columns:
         raw_df["word_no"] = range(1, len(raw_df) + 1)
         
     total_words = len(raw_df)
     
-    # 100個刻みの選択肢を動的に自動生成
     tango_options = ["すべてを表示"]
     for start in range(1, total_words + 1, 100):
         end = min(start + 99, total_words)
@@ -203,7 +210,6 @@ elif subject == "システム英単語":
     if sel_range == "すべてを表示":
         df = raw_df
     else:
-        # 選択された文字列から開始番号と終了番号を抽出してフィルタリング
         bounds = [int(s) for s in re.findall(r'\d+', sel_range)]
         if len(bounds) == 2:
             df = raw_df[(raw_df["word_no"] >= bounds[0]) & (raw_df["word_no"] <= bounds[1])]
@@ -221,7 +227,6 @@ else:
     df = raw_df
     current_filter = "All"
 
-# サイドバー設定の最後（各種メニューの下）にキャッシュクリアボタンを設置
 st.sidebar.markdown("---")
 if st.sidebar.button("🔄 アプリのキャッシュをクリア", key="clear_cache_main"):
     st.cache_data.clear()
@@ -316,7 +321,6 @@ elif subject == "暗唱例文集":
     if st.session_state.study_mode == "空欄補充": 
         st.info("💡 [  ]の中は１語とは限りません")
         
-    # 大文字・小文字の表記揺れに対応
     eng_text = str(row.get("english", row.get("English", "")))
     
     disp = re.sub(r'\*\*(.*?)\*\*', "[ ____ ]", eng_text) if st.session_state.study_mode == "空欄補充" else "（英文を思い出してください）"
@@ -376,8 +380,13 @@ elif subject in ["化学（一問一答）", "生物（一問一答）"]:
     t_ans = "tag-green-ans" if subject == "化学（一問一答）" else "tag-pink-ans"
     t_exp = "tag-green-exp" if subject == "化学（一問一答）" else "tag-pink-exp"
     
+    # 化学の場合は表記をフォーマットする
+    q_txt = str(row.get("question", row.get("Question", "")))
+    if subject == "化学（一問一答）":
+        q_txt = format_chemical_formula(q_txt)
+        
     st.markdown(f'<div class="card {card_c}">【{row.get("chapter", row.get("Chapter", ""))}】</div>', unsafe_allow_html=True)
-    st.markdown(str(row.get("question", row.get("Question", ""))))
+    st.markdown(q_txt, unsafe_allow_html=True)
 
     if subject == "化学（一問一答）":
         st.markdown('<div class="warning-box">⚠️主に知識を整理するために用意しました。計算分野は手を動かして問題集を解きましょう。</div>', unsafe_allow_html=True)
@@ -387,25 +396,27 @@ elif subject in ["化学（一問一答）", "生物（一問一答）"]:
     if not st.session_state.answered:
         if st.button("答えを確認する"): st.session_state.answered = True; st.rerun()
     else:
+        ans_txt = str(row.get("answer", row.get("Answer", "")))
+        exp_txt = str(row.get("explanation", row.get("Explanation", "")))
+        if subject == "化学（一問一答）":
+            ans_txt = format_chemical_formula(ans_txt)
+            exp_txt = format_chemical_formula(exp_txt)
+            
         st.markdown(f'<div class="mini-tag {t_ans}">正解</div>', unsafe_allow_html=True)
-        st.markdown(str(row.get("answer", row.get("Answer", ""))))
+        st.markdown(ans_txt, unsafe_allow_html=True)
         st.markdown(f'<div class="mini-tag {t_exp}">解説</div>', unsafe_allow_html=True)
-        st.markdown(str(row.get("explanation", row.get("Explanation", ""))))
+        st.markdown(exp_txt, unsafe_allow_html=True)
         if st.button("✅ 次へ"): st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
 
 # --- 理系生物 共通テスト対策 ---
 elif subject == "理系生物 共通テスト対策":
-    # 1. 注意書きを表示
     st.markdown('<div class="warning-box">⚠️共通テストの選択肢をバラバラにした〇✕問題です</div>', unsafe_allow_html=True)
-    
-    # 2. 余計なタイトル（Chapterや通し番号など）は全削除し、純粋にquestionのみを枠内に入れる
     st.markdown(f'<div class="card teal-card">{row.get("question", row.get("Question", ""))}</div>', unsafe_allow_html=True)
 
     if "selected" not in st.session_state:
         st.session_state.selected = None
 
     if not st.session_state.answered:
-        # 3. シンプルな「⭕」と「❌」のボタンを横並びで表示
         col_o, col_x = st.columns(2)
         if col_o.button("⭕", key="btn_maru"):
             st.session_state.selected = "〇"
@@ -416,11 +427,9 @@ elif subject == "理系生物 共通テスト対策":
             st.session_state.answered = True
             st.rerun()
     else:
-        # 解答・解説の表示
         ans_val = str(row.get("answer", row.get("Answer", ""))).strip()
         user_choice = st.session_state.selected
         
-        # ユーザーの選んだボタンと正解を判定して結果を表示
         if user_choice == ans_val:
             st.success(f"🎉 正解！ あなたの選択: {user_choice}")
         else:
@@ -438,19 +447,18 @@ elif subject == "理系生物 共通テスト対策":
             st.session_state.selected = None
             st.rerun()
 
-# --- 理系化学 共通テスト対策 (新規追加) ---
+# --- 理系化学 共通テスト対策 ---
 elif subject == "理系化学 共通テスト対策":
-    # 1. 注意書きを表示
     st.markdown('<div class="warning-box">⚠️共通テストの選択肢をバラバラにした〇✕問題です</div>', unsafe_allow_html=True)
     
-    # 2. 余計なタイトルは全削除し、オレンジ色の枠で question のみを入れる
-    st.markdown(f'<div class="card orange-card">{row.get("question", row.get("Question", ""))}</div>', unsafe_allow_html=True)
+    # 化学式の自動フォーマットを適用
+    q_txt = format_chemical_formula(str(row.get("question", row.get("Question", ""))))
+    st.markdown(f'<div class="card orange-card">{q_txt}</div>', unsafe_allow_html=True)
 
     if "selected" not in st.session_state:
         st.session_state.selected = None
 
     if not st.session_state.answered:
-        # 3. シンプルな「⭕」と「❌」のボタンを横並びで表示
         col_o, col_x = st.columns(2)
         if col_o.button("⭕", key="btn_maru_chem"):
             st.session_state.selected = "〇"
@@ -461,21 +469,22 @@ elif subject == "理系化学 共通テスト対策":
             st.session_state.answered = True
             st.rerun()
     else:
-        # 解答・解説の表示
         ans_val = str(row.get("answer", row.get("Answer", ""))).strip()
         user_choice = st.session_state.selected
         
-        # ユーザーの選んだボタンと正解を判定して結果を表示
         if user_choice == ans_val:
             st.success(f"🎉 正解！ あなたの選択: {user_choice}")
         else:
             st.error(f"❌ 不正解... あなたの選択: {user_choice} (正解: {ans_val})")
             
+        ans_txt = format_chemical_formula(ans_val)
+        exp_txt = format_chemical_formula(str(row.get("explanation", row.get("Explanation", ""))))
+            
         st.markdown('<div class="mini-tag tag-green-ans">正解</div>', unsafe_allow_html=True)
-        st.markdown(f"### {ans_val}")
+        st.markdown(f"### {ans_txt}", unsafe_allow_html=True)
         
         st.markdown('<div class="mini-tag tag-green-exp">解説</div>', unsafe_allow_html=True)
-        st.markdown(str(row.get("explanation", row.get("Explanation", ""))))
+        st.markdown(exp_txt, unsafe_allow_html=True)
         
         if st.button("✅ 次へ"): 
             st.session_state.idx += 1
