@@ -17,7 +17,7 @@ st.set_page_config(
 )
 
 # ==================================================
-# 2. CSS（カードの余白調整を含む）
+# 2. CSS（カードの余白調整、ボタンデザイン等）
 # ==================================================
 st.markdown("""
 <style>
@@ -78,9 +78,17 @@ st.markdown("""
 .description-box { background-color: #ffffff; padding: 20px; border-radius: 12px; border: 1px solid #e5e7eb; margin-bottom: 25px; line-height: 1.6; }
 .stButton button { width: 100%; border-radius: 16px; font-size: 1.1rem; font-weight: 800; min-height: 55px; }
 
-/* 〇✕用の巨大で見やすい特別ボタン装飾 */
+/* 〇✕用の巨大で見やすい赤色特別ボタン装飾 */
 div[data-testid="stHorizontalBlock"] .stButton button {
     font-size: 1.4rem !important;
+    color: #e91e63 !important; /* 赤（ピンク寄りの鮮やかな赤） */
+    border: 2px solid #e91e63 !important;
+    background-color: #fff5f7 !important;
+    transition: all 0.3s ease;
+}
+div[data-testid="stHorizontalBlock"] .stButton button:hover {
+    background-color: #e91e63 !important;
+    color: white !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -391,13 +399,13 @@ elif subject == "理系生物 共通テスト対策":
         st.session_state.selected = None
 
     if not st.session_state.answered:
-        # 3. 横並びで大きめの「⭕ 〇」と「❌ ×」ボタンを表示して見やすく改善
+        # 3. 指定の「赤の○（正しい）」「赤の×（誤り）」ボタンを横並びで表示
         col_o, col_x = st.columns(2)
-        if col_o.button("⭕ 〇 (正しい)", key="btn_maru"):
+        if col_o.button("赤の○（正しい）", key="btn_maru"):
             st.session_state.selected = "〇"
             st.session_state.answered = True
             st.rerun()
-        if col_x.button("❌ × (誤り)", key="btn_batsu"):
+        if col_x.button("赤の×（誤り）", key="btn_batsu"):
             st.session_state.selected = "×"
             st.session_state.answered = True
             st.rerun()
