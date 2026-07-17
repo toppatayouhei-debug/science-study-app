@@ -25,7 +25,7 @@ st.markdown("""
 .block-container { max-width:720px; padding-top: 3rem !important; } 
 .main-title { text-align:center; font-size:1.8rem; font-weight:900; margin-bottom:0.2rem; color:#1e3a8a; }
 
-/* 問題カード（分野表示枠をスリム化） */
+/* 問題カード */
 .card { 
     background:white; 
     padding: 20px; 
@@ -78,16 +78,16 @@ st.markdown("""
 .description-box { background-color: #ffffff; padding: 20px; border-radius: 12px; border: 1px solid #e5e7eb; margin-bottom: 25px; line-height: 1.6; }
 .stButton button { width: 100%; border-radius: 16px; font-size: 1.1rem; font-weight: 800; min-height: 55px; }
 
-/* 〇✕用の巨大で見やすい赤色特別ボタン装飾（背景色をクリーム色にカスタム） */
+/* 〇✕用の巨大で見やすい特別ボタン装飾（背景色をクリーム色にカスタム） */
 div[data-testid="stHorizontalBlock"] .stButton button {
-    font-size: 2rem !important; /* 絵文字をさらに大きく表示 */
-    color: #e91e63 !important; /* 赤（ピンク寄りの鮮やかな赤） */
+    font-size: 2rem !important; 
+    color: #e91e63 !important; 
     border: 2px solid #e91e63 !important;
-    background-color: #fffdeb !important; /* 優しいクリーム色 */
+    background-color: #fffdeb !important; 
     transition: all 0.3s ease;
 }
 div[data-testid="stHorizontalBlock"] .stButton button:hover {
-    background-color: #fef08a !important; /* ホバー時（少し濃いクリーム色） */
+    background-color: #fef08a !important; 
     color: #e91e63 !important;
     border: 2px solid #e91e63 !important;
 }
@@ -117,7 +117,6 @@ def format_chemical_formula(text):
     if not isinstance(text, str):
         return text
     # アルファベットの直後にある数字を下付きタグ <sub> で囲むリプレイス処理
-    # 例: H2O -> H<sub>2</sub>O, SO42- などの簡易対応
     formatted = re.sub(r'([A-Za-z\)])(\d+)', r'\1<sub>\2</sub>', text)
     # イオン価数表現表現用（2+, 3+, 2-, - などが後ろにある場合の簡易処理）
     formatted = re.sub(r'(\d+[\+\-])', r'<sup>\1</sup>', formatted)
@@ -386,7 +385,7 @@ elif subject in ["化学（一問一答）", "生物（一問一答）"]:
         q_txt = format_chemical_formula(q_txt)
         
     st.markdown(f'<div class="card {card_c}">【{row.get("chapter", row.get("Chapter", ""))}】</div>', unsafe_allow_html=True)
-    st.markdown(q_txt, unsafe_allow_html=True)
+    st.markdown(f'<div class="card {card_c}">{q_txt}</div>', unsafe_allow_html=True) # 👈 ここもHTMLを許可する囲みに修正
 
     if subject == "化学（一問一答）":
         st.markdown('<div class="warning-box">⚠️主に知識を整理するために用意しました。計算分野は手を動かして問題集を解きましょう。</div>', unsafe_allow_html=True)
@@ -453,6 +452,7 @@ elif subject == "理系化学 共通テスト対策":
     
     # 化学式の自動フォーマットを適用
     q_txt = format_chemical_formula(str(row.get("question", row.get("Question", ""))))
+    # 👈 unsafe_allow_html=True を適用して、カードの中でHTML（sub/sup）が正しく描画されるようにしました
     st.markdown(f'<div class="card orange-card">{q_txt}</div>', unsafe_allow_html=True)
 
     if "selected" not in st.session_state:
