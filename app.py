@@ -411,7 +411,7 @@ elif subject in ["化学（一問一答）", "生物（一問一答）"]:
 
 # --- 理系生物 共通テスト対策 ---
 elif subject == "理系生物 共通テスト対策":
-    st.markdown('<div class="warning-box">⚠️共通テストの選択肢をバラバラにした〇✕問題です</div>', unsafe_allow_html=True)
+    st.markdown('<div class="warning-box">⚠️共通テストの選択肢をバラバラにして〇✕問題にしました。</div>', unsafe_allow_html=True)
     st.markdown(f'<div class="card teal-card">{row.get("question", row.get("Question", ""))}</div>', unsafe_allow_html=True)
 
     if "selected" not in st.session_state:
@@ -450,7 +450,7 @@ elif subject == "理系生物 共通テスト対策":
 
 # --- 理系化学 共通テスト対策 ---
 elif subject == "理系化学 共通テスト対策":
-    st.markdown('<div class="warning-box">⚠️共通テストの選択肢をバラバラにした〇✕問題です</div>', unsafe_allow_html=True)
+    st.markdown('<div class="warning-box">⚠️共通テストの選択肢をバラバラにして〇✕問題にしました。</div>', unsafe_allow_html=True)
     
     # 化学式の自動フォーマットを適用
     q_txt = format_chemical_formula(str(row.get("question", row.get("Question", ""))))
@@ -495,8 +495,7 @@ elif subject == "理系化学 共通テスト対策":
 
 # --- 地理 共通テスト対策 （新規追加） ---
 elif subject == "地理 共通テスト対策":
-    st.markdown('<div class="warning-box">⚠️共通テストの正誤判定の選択肢から、図表なしで判断可能な選択肢を集めた〇✕問題です。</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="card purple-card">【{row.get("chapter", row.get("Chapter", ""))}】</div>', unsafe_allow_html=True)
+    st.markdown('<div class="warning-box">⚠️共通テストの選択肢をバラバラにして〇✕問題にしました。</div>', unsafe_allow_html=True)
     st.markdown(f'<div class="card purple-card">{row.get("question", row.get("Question", ""))}</div>', unsafe_allow_html=True)
 
     if "selected" not in st.session_state:
