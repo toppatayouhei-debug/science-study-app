@@ -376,20 +376,45 @@ elif subject in ["化学（一問一答）", "生物（一問一答）"]:
 
 # --- 理系生物 共通テスト対策 ---
 elif subject == "理系生物 共通テスト対策":
-    st.markdown(f'<div class="card teal-card">【{row.get("chapter", row.get("Chapter", ""))}】</div>', unsafe_allow_html=True)
-    st.markdown(str(row.get("question", row.get("Question", ""))))
+    # 注意書きを問題提示と同じ画面（最初から）に表示
+    st.markdown('<div class="warning-box">⚠️共通テストの選択肢をバラバラにした〇✕問題です</div>', unsafe_allow_html=True)
+    
+    # 枠の中に「通し番号 共通テストの過去問」としてquestionの内容を表示
+    st.markdown(f'<div class="card teal-card"><b>【{idx + 1} 共通テストの過去問】</b><br><br>{row.get("question", row.get("Question", ""))}</div>', unsafe_allow_html=True)
+
+    if "selected" not in st.session_state:
+        st.session_state.selected = None
 
     if not st.session_state.answered:
-        if st.button("答えを確認する"): 
+        # 〇と×の2つのボタンを横並びで用意
+        col_o, col_x = st.columns(2)
+        if col_o.button("〇", key="btn_maru"):
+            st.session_state.selected = "〇"
+            st.session_state.answered = True
+            st.rerun()
+        if col_x.button("×", key="btn_batsu"):
+            st.session_state.selected = "×"
             st.session_state.answered = True
             st.rerun()
     else:
-        st.markdown('<div class="warning-box">⚠️共通テストの選択肢をバラバラにした〇✕問題です</div>', unsafe_allow_html=True)
+        # 解報・解説の表示
+        ans_val = str(row.get("answer", row.get("Answer", ""))).strip()
+        user_choice = st.session_state.selected
+        
+        # ユーザーの選んだボタンと正解を判定して結果を表示
+        if user_choice == ans_val:
+            st.success(f"🎉 正解！ あなたの選択: {user_choice}")
+        else:
+            st.error(f"❌ 不正解... あなたの選択: {user_choice} (正解: {ans_val})")
+            
         st.markdown('<div class="mini-tag tag-teal-ans">正解</div>', unsafe_allow_html=True)
-        st.markdown(str(row.get("answer", row.get("Answer", ""))))
+        st.markdown(f"### {ans_val}")
+        
         st.markdown('<div class="mini-tag tag-teal-exp">解説</div>', unsafe_allow_html=True)
         st.markdown(str(row.get("explanation", row.get("Explanation", ""))))
+        
         if st.button("✅ 次へ"): 
             st.session_state.idx += 1
             st.session_state.answered = False
+            st.session_state.selected = None
             st.rerun()
