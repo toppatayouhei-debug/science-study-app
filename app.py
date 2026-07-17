@@ -28,12 +28,12 @@ st.markdown("""
 /* 問題カード（分野表示枠をスリム化） */
 .card { 
     background:white; 
-    padding: 12px 20px; 
+    padding: 20px; 
     border-radius:18px; 
     box-shadow:0 8px 20px rgba(0,0,0,0.06); 
     margin-bottom: 0.8rem; 
-    line-height: 1.5; 
-    font-size: 1rem; 
+    line-height: 1.6; 
+    font-size: 1.05rem; 
     color:#111; 
 }
 .orange-card { border-left: 8px solid #ff9800; } 
@@ -77,6 +77,11 @@ st.markdown("""
 
 .description-box { background-color: #ffffff; padding: 20px; border-radius: 12px; border: 1px solid #e5e7eb; margin-bottom: 25px; line-height: 1.6; }
 .stButton button { width: 100%; border-radius: 16px; font-size: 1.1rem; font-weight: 800; min-height: 55px; }
+
+/* 〇✕用の巨大で見やすい特別ボタン装飾 */
+div[data-testid="stHorizontalBlock"] .stButton button {
+    font-size: 1.4rem !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -376,28 +381,28 @@ elif subject in ["化学（一問一答）", "生物（一問一答）"]:
 
 # --- 理系生物 共通テスト対策 ---
 elif subject == "理系生物 共通テスト対策":
-    # 注意書きを問題提示と同じ画面（最初から）に表示
+    # 1. 注意書きを問題提示と同じ画面（最初から）に表示
     st.markdown('<div class="warning-box">⚠️共通テストの選択肢をバラバラにした〇✕問題です</div>', unsafe_allow_html=True)
     
-    # 枠の中に「通し番号 共通テストの過去問」としてquestionの内容を表示
-    st.markdown(f'<div class="card teal-card"><b>【{idx + 1} 共通テストの過去問】</b><br><br>{row.get("question", row.get("Question", ""))}</div>', unsafe_allow_html=True)
+    # 2. 余計なタイトル（Chapterや通し番号など）は全削除し、純粋にquestionのみを枠内に入れる
+    st.markdown(f'<div class="card teal-card">{row.get("question", row.get("Question", ""))}</div>', unsafe_allow_html=True)
 
     if "selected" not in st.session_state:
         st.session_state.selected = None
 
     if not st.session_state.answered:
-        # 〇と×の2つのボタンを横並びで用意
+        # 3. 横並びで大きめの「⭕ 〇」と「❌ ×」ボタンを表示して見やすく改善
         col_o, col_x = st.columns(2)
-        if col_o.button("〇", key="btn_maru"):
+        if col_o.button("⭕ 〇 (正しい)", key="btn_maru"):
             st.session_state.selected = "〇"
             st.session_state.answered = True
             st.rerun()
-        if col_x.button("×", key="btn_batsu"):
+        if col_x.button("❌ × (誤り)", key="btn_batsu"):
             st.session_state.selected = "×"
             st.session_state.answered = True
             st.rerun()
     else:
-        # 解報・解説の表示
+        # 解答・解説の表示
         ans_val = str(row.get("answer", row.get("Answer", ""))).strip()
         user_choice = st.session_state.selected
         
