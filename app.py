@@ -10,7 +10,7 @@ import urllib.parse
 # 1. 基本設定
 # ==================================================
 st.set_page_config(
-    page_title="理系の暗記モノ 完全攻略",
+    page_title="Pass Pack -Type S-",
     page_icon="🧬",
     layout="centered",
     initial_sidebar_state="expanded"
@@ -148,7 +148,7 @@ def load_csv(subject):
 # ==================================================
 # 5. メインロジック
 # ==================================================
-st.markdown('<div class="main-title">🧪 🔢 🧬 理系の暗記モノ 完全攻略</div>', unsafe_allow_html=True)
+st.markdown('<div class="main-title">🧪 Pass Pack -Type S- 🧬 </div>', unsafe_allow_html=True)
 st.sidebar.title("🧬 学習メニュー")
 
 subject = st.sidebar.selectbox("科目を選択", [
