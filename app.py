@@ -109,7 +109,7 @@ def play_voice(text, label="音声を聴く"):
     except: pass
 
 def reset_engine():
-    for k in ["df", "idx", "answered", "choices", "correct", "quiz_filter", "quiz_subject", "selected", "study_mode"]:
+    for k in ["df", "idx", "answered", "choices", "correct", "quiz_filter", "quiz_subject", "selected", "study_mode", "current_word"]:
         if k in st.session_state: del st.session_state[k]
 
 def format_chemical_formula(text):
@@ -118,7 +118,7 @@ def format_chemical_formula(text):
         return text
     # アルファベットの直後にある数字を下付きタグ <sub> で囲むリプレイス処理
     formatted = re.sub(r'([A-Za-z\)])(\d+)', r'\1<sub>\2</sub>', text)
-    # イオン価数表現表現用（2+, 3+, 2-, - などが後ろにある場合の簡易処理）
+    # イオン価数表現用（2+, 3+, 2-, - などが後ろにある場合の簡易処理）
     formatted = re.sub(r'(\d+[\+\-])', r'<sup>\1</sup>', formatted)
     return formatted
 
@@ -137,7 +137,7 @@ def load_csv(subject):
         "生物（一問一答）": "biology.csv",
         "理系生物 共通テスト対策": "sbio_seigo.csv",
         "理系化学 共通テスト対策": "schem_seigo.csv",
-        "地理 共通テスト対策": "chiri_seigo.csv"  # 👈 新規追加
+        "地理 共通テスト対策": "chiri_seigo.csv"
     }
     try:
         df = pd.read_csv(files[subject], encoding="utf-8-sig").dropna(how='all')
@@ -155,7 +155,7 @@ subject = st.sidebar.selectbox("科目を選択", [
     "選択してください", "数学Ⅲ（定石定着）", "システム英単語", "暗唱例文集", 
     "頻出！英文法入試問題", "化学（一問一答）", "地理（一問一答）", 
     "生物（一問一答）", "理系生物 共通テスト対策", "理系化学 共通テスト対策",
-    "地理 共通テスト対策"  # 👈 新規追加
+    "地理 共通テスト対策"
 ])
 
 if subject == "選択してください":
@@ -290,24 +290,61 @@ elif subject == "システム英単語":
     st.markdown(f'<div class="card orange-card">{sent}</div>', unsafe_allow_html=True)
     st.markdown('<div class="warning-box">⚠️シス単本体をメインにしましょう。情報量が全然違います。</div>', unsafe_allow_html=True)
 
-    if "choices" not in st.session_state:
-        correct = [x.strip() for x in re.split(r'[,、;]', str(row["all_answers"]))][0]
-        dummies = [x.strip() for x in re.split(r'[,、;]', str(row["dummy_pool"])) if x.strip() != correct]
-        st.session_state.choices = random.sample([correct] + random.sample(dummies, 3), 4)
-        random.shuffle(st.session_state.choices)
+    # 選択肢の生成・初期化（未設定時のみ実行）
+    if "choices" not in st.session_state or st.session_state.get("current_word") != word:
+        st.session_state.current_word = word
+        
+        # 正解の取得
+        raw_ans = str(row.get("all_answers", row.get("answer", "")))
+        correct = [x.strip() for x in re.split(r'[,、;]', raw_ans) if x.strip()][0]
+        
+        # ダミー選択肢の取得と抽出
+        dummy_pool_str = str(row.get("dummy_pool", ""))
+        dummies = [x.strip() for x in re.split(r'[,、;]', dummy_pool_str) if x.strip() and x.strip() != correct]
+        
+        # ダミーが不足している場合のフォールバック処理
+        if len(dummies) < 3:
+            all_other_ans = active_df[active_df["question"] != word]["all_answers"].dropna().tolist()
+            extra_dummies = [re.split(r'[,、;]', str(a))[0].strip() for a in all_other_ans if re.split(r'[,、;]', str(a))[0].strip() != correct]
+            dummies = list(set(dummies + extra_dummies))
+        
+        # 4つの選択肢を作成してシャッフル
+        selected_dummies = random.sample(dummies, min(3, len(dummies)))
+        choices = [correct] + selected_dummies
+        random.shuffle(choices)
+        
+        st.session_state.choices = choices
         st.session_state.correct = correct
+        st.session_state.selected = None
 
+    # 選択肢ボタンの表示
     cols = st.columns(2)
     for i, val in enumerate(st.session_state.choices):
-        if cols[i%2].button(val, key=f"t_{i}", disabled=st.session_state.answered):
-            st.session_state.selected, st.session_state.answered = val, True; st.rerun()
+        if cols[i % 2].button(val, key=f"tango_btn_{i}", disabled=st.session_state.answered):
+            st.session_state.selected = val
+            st.session_state.answered = True
+            st.rerun()
 
+    # 回答後の判定・結果表示
     if st.session_state.answered:
-        if st.session_state.selected == st.session_state.correct: st.success("正解！")
-        else: st.error(f"不正解... 正解：{st.session_state.correct}")
-        st.info(f"意味：{row['all_answers']}\n訳：{row['translation']}")
-        play_voice(word)
-        if st.button("✅ 次の問題へ"): del st.session_state.choices; st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
+        if st.session_state.selected == st.session_state.correct:
+            st.success("🎉 正解！")
+        else:
+            st.error(f"❌ 不正解... （あなたの回答: {st.session_state.selected} / 正解: {st.session_state.correct}）")
+        
+        st.info(f"<b>【単語】</b> {word}<br><b>【意味】</b> {row.get('all_answers', '')}<br><b>【訳】</b> {row.get('translation', '')}", icon="💡")
+        
+        # 音声読み上げ
+        play_voice(word, label="単語の発音を聴く")
+        
+        if st.button("✅ 次の問題へ", key="btn_next_tango"):
+            # セッション変数のクリア
+            for key in ["choices", "correct", "selected", "current_word"]:
+                if key in st.session_state:
+                    del st.session_state[key]
+            st.session_state.idx += 1
+            st.session_state.answered = False
+            st.rerun()
 
 # --- 暗唱例文集 ---
 elif subject == "暗唱例文集":
@@ -387,7 +424,7 @@ elif subject in ["化学（一問一答）", "生物（一問一答）"]:
         q_txt = format_chemical_formula(q_txt)
         
     st.markdown(f'<div class="card {card_c}">【{row.get("chapter", row.get("Chapter", ""))}】</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="card {card_c}">{q_txt}</div>', unsafe_allow_html=True) # 👈 ここもHTMLを許可する囲みに修正
+    st.markdown(f'<div class="card {card_c}">{q_txt}</div>', unsafe_allow_html=True)
 
     if subject == "化学（一問一答）":
         st.markdown('<div class="warning-box">⚠️主に知識を整理するために用意しました。計算分野は手を動かして問題集を解きましょう。</div>', unsafe_allow_html=True)
@@ -493,7 +530,7 @@ elif subject == "理系化学 共通テスト対策":
             st.session_state.selected = None
             st.rerun()
 
-# --- 地理 共通テスト対策 （新規追加） ---
+# --- 地理 共通テスト対策 ---
 elif subject == "地理 共通テスト対策":
     st.markdown('<div class="warning-box">⚠️共通テストの選択肢をバラバラにして〇✕問題にしました。</div>', unsafe_allow_html=True)
     st.markdown(f'<div class="card purple-card">{row.get("question", row.get("Question", ""))}</div>', unsafe_allow_html=True)
