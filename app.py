@@ -116,9 +116,7 @@ def format_chemical_formula(text):
     """テキスト内の一般的な化学式（例: H2O, CO2, C6H12O6）の数字を下付き文字にする"""
     if not isinstance(text, str):
         return text
-    # アルファベットの直後にある数字を下付きタグ <sub> で囲むリプレイス処理
     formatted = re.sub(r'([A-Za-z\)])(\d+)', r'\1<sub>\2</sub>', text)
-    # イオン価数表現用（2+, 3+, 2-, - などが後ろにある場合の簡易処理）
     formatted = re.sub(r'(\d+[\+\-])', r'<sup>\1</sup>', formatted)
     return formatted
 
@@ -283,66 +281,59 @@ elif subject == "地理（一問一答）":
         st.markdown(str(row.get("explanation", row.get("Explanation", ""))))
         if st.button("✅ 次へ"): st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
 
-# --- システム英単語 ---
+# --- システム英単語（高速単語カードUI） ---
 elif subject == "システム英単語":
-    word = str(row["question"])
-    sent = re.sub(re.escape(word), f"<span class='highlight'>{word}</span>", str(row["sentence"]), flags=re.IGNORECASE)
-    st.markdown(f'<div class="card orange-card">{sent}</div>', unsafe_allow_html=True)
     st.markdown('<div class="warning-box">⚠️シス単本体をメインにしましょう。情報量が全然違います。</div>', unsafe_allow_html=True)
 
-    # 選択肢の生成・初期化（未設定時のみ実行）
-    if "choices" not in st.session_state or st.session_state.get("current_word") != word:
-        st.session_state.current_word = word
-        
-        # 正解の取得
-        raw_ans = str(row.get("all_answers", row.get("answer", "")))
-        correct = [x.strip() for x in re.split(r'[,、;]', raw_ans) if x.strip()][0]
-        
-        # ダミー選択肢の取得と抽出
-        dummy_pool_str = str(row.get("dummy_pool", ""))
-        dummies = [x.strip() for x in re.split(r'[,、;]', dummy_pool_str) if x.strip() and x.strip() != correct]
-        
-        # ダミーが不足している場合のフォールバック処理
-        if len(dummies) < 3:
-            all_other_ans = active_df[active_df["question"] != word]["all_answers"].dropna().tolist()
-            extra_dummies = [re.split(r'[,、;]', str(a))[0].strip() for a in all_other_ans if re.split(r'[,、;]', str(a))[0].strip() != correct]
-            dummies = list(set(dummies + extra_dummies))
-        
-        # 4つの選択肢を作成してシャッフル
-        selected_dummies = random.sample(dummies, min(3, len(dummies)))
-        choices = [correct] + selected_dummies
-        random.shuffle(choices)
-        
-        st.session_state.choices = choices
-        st.session_state.correct = correct
-        st.session_state.selected = None
+    word = str(row["question"])
+    sentence = str(row.get("sentence", ""))
+    translation = str(row.get("translation", ""))
+    all_answers = str(row.get("all_answers", row.get("answer", "")))
 
-    # 選択肢ボタンの表示
-    cols = st.columns(2)
-    for i, val in enumerate(st.session_state.choices):
-        if cols[i % 2].button(val, key=f"tango_btn_{i}", disabled=st.session_state.answered):
-            st.session_state.selected = val
+    # フレーズ内のターゲット英単語を「オレンジ色の太字」で表示
+    highlighted_sent = re.sub(
+        re.escape(word), 
+        f"<span style='color:#ff9800; font-weight:bold;'>{word}</span>", 
+        sentence, 
+        flags=re.IGNORECASE
+    )
+
+    # 表面：英単語およびミニフレーズ
+    st.markdown(f'''
+        <div class="card orange-card" style="text-align: center; padding: 25px 20px;">
+            <div style="font-size: 0.85rem; color: #888; margin-bottom: 5px;">No. {row.get("word_no", "")}</div>
+            <div style="font-size: 2.5rem; font-weight: 900; color: #111111; letter-spacing: 1px; margin-bottom: 15px;">{word}</div>
+            <hr style="border: 0; border-top: 1px dashed #e0e0e0; margin: 15px 0;">
+            <div style="font-size: 0.85rem; color: #666; margin-bottom: 4px;">【ミニフレーズ】</div>
+            <div style="font-size: 1.15rem; color: #333; font-weight: 500;">{highlighted_sent}</div>
+        </div>
+    ''', unsafe_allow_html=True)
+
+    if not st.session_state.answered:
+        if st.button("意味を確認"):
             st.session_state.answered = True
             st.rerun()
+    else:
+        # 裏面：意味 ＆ フレーズ訳
+        st.markdown(f'''
+            <div class="exp-card" style="text-align: center;">
+                <div style="font-size: 0.85rem; color: #666;">【意味】</div>
+                <div style="font-size: 1.5rem; font-weight: bold; color: #d9480f; margin-bottom: 12px;">{all_answers}</div>
+                <hr style="border-top: 1px dashed #ccc; margin: 10px 0;">
+                <div style="font-size: 0.85rem; color: #666;">【フレーズ訳】</div>
+                <div style="font-size: 1.05rem; color: #222;">{translation}</div>
+            </div>
+        ''', unsafe_allow_html=True)
+        
+        play_voice(word, "単語の発音")
 
-    # 回答後の判定・結果表示
-    if st.session_state.answered:
-        if st.session_state.selected == st.session_state.correct:
-            st.success("🎉 正解！")
-        else:
-            st.error(f"❌ 不正解... （あなたの回答: {st.session_state.selected} / 正解: {st.session_state.correct}）")
-        
-        st.info(f"<b>【単語】</b> {word}<br><b>【意味】</b> {row.get('all_answers', '')}<br><b>【訳】</b> {row.get('translation', '')}", icon="💡")
-        
-        # 音声読み上げ
-        play_voice(word, label="単語の発音を聴く")
-        
-        if st.button("✅ 次の問題へ", key="btn_next_tango"):
-            # セッション変数のクリア
-            for key in ["choices", "correct", "selected", "current_word"]:
-                if key in st.session_state:
-                    del st.session_state[key]
+        st.write("---")
+        c1, c2 = st.columns(2)
+        if c1.button("✅ 次へ"):
             st.session_state.idx += 1
+            st.session_state.answered = False
+            st.rerun()
+        if c2.button("🔄 もう一度"):
             st.session_state.answered = False
             st.rerun()
 
@@ -418,7 +409,6 @@ elif subject in ["化学（一問一答）", "生物（一問一答）"]:
     t_ans = "tag-green-ans" if subject == "化学（一問一答）" else "tag-pink-ans"
     t_exp = "tag-green-exp" if subject == "化学（一問一答）" else "tag-pink-exp"
     
-    # 化学の場合は表記をフォーマットする
     q_txt = str(row.get("question", row.get("Question", "")))
     if subject == "化学（一問一答）":
         q_txt = format_chemical_formula(q_txt)
@@ -489,7 +479,6 @@ elif subject == "理系生物 共通テスト対策":
 elif subject == "理系化学 共通テスト対策":
     st.markdown('<div class="warning-box">⚠️共通テストの選択肢をバラバラにして〇✕問題にしました。</div>', unsafe_allow_html=True)
     
-    # 化学式の自動フォーマットを適用
     q_txt = format_chemical_formula(str(row.get("question", row.get("Question", ""))))
     st.markdown(f'<div class="card orange-card">{q_txt}</div>', unsafe_allow_html=True)
 
