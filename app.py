@@ -198,22 +198,16 @@ elif subject == "システム英単語":
         
     total_words = len(raw_df)
     
-    tango_options = ["すべてを表示"]
-    for start in range(1, total_words + 1, 100):
-        end = min(start + 99, total_words)
-        tango_options.append(f"{start} - {end}")
-        
-    sel_range = st.sidebar.radio("単語範囲（100個刻み）", tango_options)
-    current_filter = sel_range
+    start_no, end_no = st.sidebar.slider(
+        "単語番号の範囲を指定",
+        min_value=1,
+        max_value=total_words,
+        value=(1, min(100, total_words)),
+        step=10
+    )
     
-    if sel_range == "すべてを表示":
-        df = raw_df
-    else:
-        bounds = [int(s) for s in re.findall(r'\d+', sel_range)]
-        if len(bounds) == 2:
-            df = raw_df[(raw_df["word_no"] >= bounds[0]) & (raw_df["word_no"] <= bounds[1])]
-        else:
-            df = raw_df
+    current_filter = f"{start_no}-{end_no}"
+    df = raw_df[(raw_df["word_no"] >= start_no) & (raw_df["word_no"] <= end_no)]
 
 elif "chapter" in raw_df.columns or "Chapter" in raw_df.columns:
     c_col = "chapter" if "chapter" in raw_df.columns else "Chapter"
@@ -281,7 +275,7 @@ elif subject == "地理（一問一答）":
         st.markdown(str(row.get("explanation", row.get("Explanation", ""))))
         if st.button("✅ 次へ"): st.session_state.idx += 1; st.session_state.answered = False; st.rerun()
 
-# --- システム英単語（高速単語カードUI） ---
+# --- システム英単語（スライダー範囲選択 & 高速単語カードUI） ---
 elif subject == "システム英単語":
     st.markdown('<div class="warning-box">⚠️シス単本体をメインにしましょう。情報量が全然違います。</div>', unsafe_allow_html=True)
 
