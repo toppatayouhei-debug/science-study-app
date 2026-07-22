@@ -42,6 +42,7 @@ st.markdown("""
 .purple-card { border-left: 8px solid #9c27b0; } /* 地理用 */
 .pink-card   { border-left: 8px solid #e91e63; } /* 生物用 */
 .teal-card   { border-left: 8px solid #009688; } /* 理系生物 共通テスト対策用 */
+.red-card    { border-left: 8px solid #f44336; } /* 国語 漢字用 */
 
 .highlight { color: #ff9800 !important; font-weight: bold !important; }
 
@@ -71,6 +72,8 @@ st.markdown("""
 .tag-pink-exp { background-color: #fce4ec; color: #880e4f; border: 1px solid #e91e63; }
 .tag-teal-ans { background-color: #009688; color: white; }
 .tag-teal-exp { background-color: #e0f2f1; color: #004d40; border: 1px solid #009688; }
+.tag-red-ans { background-color: #f44336; color: white; }
+.tag-red-exp { background-color: #ffebee; color: #c62828; border: 1px solid #f44336; }
 
 /* 英文法解説用カード */
 .exp-card { background: #fff9db; padding: 18px; border-radius: 14px; border: 1px dashed #fab005; margin-top: 10px; font-size: 0.95rem; color: #333; }
@@ -135,7 +138,8 @@ def load_csv(subject):
         "生物（一問一答）": "biology.csv",
         "理系生物 共通テスト対策": "sbio_seigo.csv",
         "理系化学 共通テスト対策": "schem_seigo.csv",
-        "地理 共通テスト対策": "chiri_seigo.csv"
+        "地理 共通テスト対策": "chiri_seigo.csv",
+        "共通テスト現代文（漢字）": "kokugo_kanji.csv"
     }
     try:
         df = pd.read_csv(files[subject], encoding="utf-8-sig").dropna(how='all')
@@ -153,7 +157,7 @@ subject = st.sidebar.selectbox("科目を選択", [
     "選択してください", "数学Ⅲ（定石定着）", "システム英単語", "暗唱例文集", 
     "頻出！英文法入試問題", "化学（一問一答）", "地理（一問一答）", 
     "生物（一問一答）", "理系生物 共通テスト対策", "理系化学 共通テスト対策",
-    "地理 共通テスト対策"
+    "地理 共通テスト対策", "共通テスト現代文（漢字）"
 ])
 
 if subject == "選択してください":
@@ -366,7 +370,7 @@ elif subject == "頻出！英文法入試問題":
     st.info(
         "⚠️ 文法の得点目標は７割。そのために何が必要かを理解する。\n\n"
         "⚠️ 論理とパターン。これが文法を攻略するためのカギになる。\n\n"
-        "⚠️ 問題を、解いて解いて解きまくる。ニガテ意識よサヨウナラ。"
+        "⚠️ 問題を、解いて解きまくる。ニガテ意識よサヨウナラ。"
     )
     
     uni_suffix = f" （{row['university']}）" if "university" in row and pd.notna(row["university"]) and str(row["university"]).strip() else ""
@@ -547,6 +551,53 @@ elif subject == "地理 共通テスト対策":
         st.markdown(str(row.get("explanation", row.get("Explanation", ""))))
         
         if st.button("✅ 次へ"): 
+            st.session_state.idx += 1
+            st.session_state.answered = False
+            st.session_state.selected = None
+            st.rerun()
+
+# --- 共通テスト現代文（漢字） ---
+elif subject == "共通テスト現代文（漢字）":
+    st.markdown('<div class="warning-box">⚠️共通テスト現代文の漢字問題です。傍線部と同じ漢字を含むものを選択肢から選んでください。</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="card red-card"><b>{row.get("question", "")}</b></div>', unsafe_allow_html=True)
+
+    options = {
+        "A": str(row.get("option A", "")),
+        "B": str(row.get("option B", "")),
+        "C": str(row.get("option C", "")),
+        "D": str(row.get("option D", ""))
+    }
+
+    if "selected" not in st.session_state:
+        st.session_state.selected = None
+
+    if not st.session_state.answered:
+        for key in ["A", "B", "C", "D"]:
+            if st.button(f"[{key}] {options[key]}", key=f"btn_kanji_{key}"):
+                st.session_state.selected = key
+                st.session_state.answered = True
+                st.rerun()
+    else:
+        # 正解のアルファベット表記（A, B, C, D）を取得・正規化
+        raw_ans = str(row.get("answer", "")).strip().upper()
+        # "A", "B", "C", "D" 以外の余計な文字が入っている場合の抽出対応
+        match = re.search(r'[A-D]', raw_ans)
+        ans_key = match.group(0) if match else raw_ans
+
+        user_choice = st.session_state.selected
+
+        if user_choice == ans_key:
+            st.success(f"🎉 正解！ [{user_choice}] {options.get(user_choice, '')}")
+        else:
+            st.error(f"❌ 不正解... あなたの選択: [{user_choice}] {options.get(user_choice, '')}")
+
+        st.markdown('<div class="mini-tag tag-red-ans">正解</div>', unsafe_allow_html=True)
+        st.markdown(f"### [{ans_key}] {options.get(ans_key, '')}")
+
+        st.markdown('<div class="mini-tag tag-red-exp">解説</div>', unsafe_allow_html=True)
+        st.markdown(str(row.get("explanation", "")))
+
+        if st.button("✅ 次へ"):
             st.session_state.idx += 1
             st.session_state.answered = False
             st.session_state.selected = None
